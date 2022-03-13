@@ -47,7 +47,7 @@ private:
 	std::string ver = "1.0";
 
 	//- Screen Size
-	const int SCREEN_WIDTH = 960, SCREEN_HEIGHT = 620;
+	const int CANVAS_WIDTH = 960, CANVAS_HEIGHT = 620;
 
 	//- States
 	bool card_visible = true, cash_large_visible = false, cash_small_visible = false, receipt_visible = false;
@@ -69,6 +69,8 @@ private:
 	};
 
 	//- General
+	sf::View view;
+	sf::VideoMode screen;
 	sf::RenderWindow window;
 	sf::Event event;
 	sf::Font font;
@@ -137,9 +139,54 @@ private:
 
 	void init_win()
 	{
-		window.create(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEIGHT), program_title(), sf::Style::Titlebar | sf::Style::Close);
+#ifdef TARGET_ANDROID
+		screen = sf::VideoMode(sf::VideoMode::getDesktopMode());
+		view.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
+		view.setCenter(view.getSize().x / 2, view.getSize().y / 2);
+		view = getLetterboxView(view, screen.width, screen.height);
+		window.create(screen, "");
+		window.setView(view);
+#else
+		screen = sf::VideoMode(CANVAS_WIDTH, CANVAS_HEIGHT);
+		window.create(screen, program_title(), sf::Style::Titlebar | sf::Style::Close);
+#endif
 		window.setFramerateLimit(60);
 		window.setKeyRepeatEnabled(false);
+	}
+
+	// https://github.com/SFML/SFML/wiki/Source:-Letterbox-effect-using-a-view
+	sf::View getLetterboxView(sf::View view, int windowWidth, int windowHeight) {
+
+		// Compares the aspect ratio of the window to the aspect ratio of the view,
+		// and sets the view's viewport accordingly in order to achieve a letterbox effect.
+		// A new view (with a new viewport set) is returned.
+
+		float windowRatio = windowWidth / (float) windowHeight;
+		float viewRatio = view.getSize().x / (float) view.getSize().y;
+		float sizeX = 1;
+		float sizeY = 1;
+		float posX = 0;
+		float posY = 0;
+
+		bool horizontalSpacing = true;
+		if (windowRatio < viewRatio)
+			horizontalSpacing = false;
+
+		// If horizontalSpacing is true, the black bars will appear on the left and right side.
+		// Otherwise, the black bars will appear on the top and bottom.
+
+		if (horizontalSpacing)
+		{
+			sizeX = viewRatio / windowRatio;
+			posX = (1 - sizeX) / 2.f;
+		}
+		else
+		{
+			sizeY = windowRatio / viewRatio;
+			posY = (1 - sizeY) / 2.f;
+		}
+		view.setViewport(sf::FloatRect(posX, posY, sizeX, sizeY));
+		return view;
 	}
 
 	void init()
@@ -277,6 +324,12 @@ private:
 			{
 			case sf::Event::Closed:
 				window.close();
+				break;
+			case sf::Event::Resized:
+#ifdef TARGET_ANDROID
+				view = getLetterboxView(view, event.size.width, event.size.height);
+				window.setView(view);
+#endif
 				break;
 			case sf::Event::MouseButtonReleased:
 				declicked = false;
