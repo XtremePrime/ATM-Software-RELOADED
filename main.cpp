@@ -56,7 +56,7 @@ private:
 	unsigned short int pin = 0; unsigned short int pin_count = 0; unsigned short int pin_retry = 0;
 	int amount = 0; unsigned short int amount_count = 0;
 	bool blocked = false;
-	bool flag = false;
+	bool accountSuspendedFlag = false;
 
 	//- User Data Structure
 	struct User
@@ -1133,10 +1133,10 @@ private:
 			break;
 		case 22: //- (22) Account suspended
 			blocked = true;
-			if (!flag)
+			if (!accountSuspendedFlag)
 			{
 				oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_out(oss.str());
-				flag = true;
+				accountSuspendedFlag = true;
 			}
 			if (get_mouse_input() == 20)
 			{
@@ -1332,7 +1332,7 @@ private:
 		switch (routine)
 		{
 		case RoutineCode::CARD_IN:
-			flag = false;
+			accountSuspendedFlag = false;
 			card_visible = false;
 			card_snd.play();
 			render(window);
