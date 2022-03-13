@@ -51,7 +51,6 @@ private:
 
 	//- States
 	bool card_visible = true, cash_large_visible = false, cash_small_visible = false, receipt_visible = false;
-	bool declicked = false;
 	unsigned short int scr_state = 1;
 	unsigned short int pin = 0; unsigned short int pin_count = 0; unsigned short int pin_retry = 0;
 	int amount = 0; unsigned short int amount_count = 0;
@@ -126,6 +125,9 @@ private:
 
 	//- Chat arrays for live text
 	std::string pin_live_txt = "****"; std::string amount_live_txt = "";
+
+	//- Outstanding Click / Touch Event
+	sf::Vector2i* outstanding_interaction_event = nullptr;
 
 	//- Standard use enums
 	enum RoutineCode {
@@ -308,7 +310,6 @@ private:
 	{
 		//- Initialize States
 		card_visible = true; cash_large_visible = false; cash_small_visible = false; receipt_visible = false;
-		declicked = false;
 		scr_state = 1;
 		pin = 0; pin_count = 0; pin_retry = 0;
 		amount = 0; amount_count = 0;
@@ -343,44 +344,22 @@ private:
 				window.setView(view);
 #endif
 				break;
-			case sf::Event::MouseButtonReleased:
-				declicked = false;
+			case sf::Event::TouchBegan:
+				if (event.touch.finger == 0)
+					outstanding_interaction_event = new sf::Vector2i(event.touch.x, event.touch.y);
 				break;
-			}
-			if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && !declicked)
-			{
-				if ((385 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 455) && !cash_large_visible) //- Column 4 Keypad
-				{
-					if ((410 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 449)) //- Button: Cancel
-					{
-						if (!card_visible)
-						{
-							menu_snd.play();
-							if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 && scr_state != 23)
-							{
-								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " canceled the session"; log_out(oss.str());
-							}
-							event_routine(RoutineCode::CARD_OUT);
-						}
-						declicked = true;
-					}
-				}
-				if ((12 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 92) && !declicked) //- Exit Button (x axis)
-				{
-					if ((563 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 603)) //- Exit Button (y axis)
-					{
-						click_snd.play();
-						window.close();
-					}
-				}
+			case sf::Event::MouseButtonPressed:
+				sf::Vector2i position = sf::Mouse::getPosition(window);
+				outstanding_interaction_event = new sf::Vector2i(position.x, position.y);
+				break;
 			}
 		}
 	}
 
-	int get_mouse_input()
+	int get_clickable_object_code(int x, int y)
 	{
 		//===============================
-		//Input Codes (get_mouse_input())
+		//Input Codes
 		//===============================
 		//Screen Buttons:
 		//L1 = 1    R1 = 5
@@ -395,7 +374,7 @@ private:
 		//          0 = 15
 		//===============================
 		//Action Buttons:
-		//Cancel = (NOT HANDLED HERE)
+		//Cancel = 25
 		//Clear  = 19
 		//OK     = 20
 		//===============================
@@ -405,159 +384,144 @@ private:
 		//cash_small = 23
 		//receipt    = 24
 		//===============================
+		//exit = 26
 		//===============================
 
-		if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && (!declicked))
+		if ((11 <= x) && (x <= 55)) //- Left Column Screen Buttons
 		{
-			if ((11 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 55)) //- Left Column Screen Buttons
+			if ((125 <= y) && (y <= 163)) //- Button: L1
 			{
-				if ((125 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 163)) //- Button: L1
-				{
-					declicked = true;
-					return 1;
-				}
-				if ((174 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 210)) //- Button: L2
-				{
-					declicked = true;
-					return 2;
-				}
-				if ((221 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 259)) //- Button: L3
-				{
-					declicked = true;
-					return 3;
-				}
-				if ((269 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 305)) //- Button: L4
-				{
-					declicked = true;
-					return 4;
-				}
+				return 1;
 			}
-			if ((588 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 632)) //- Right Column Screen Buttons
+			if ((174 <= y) && (y <= 210)) //- Button: L2
 			{
-				if ((127 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 163)) //- Button: R1
-				{
-					declicked = true;
-					return 5;
-				}
-				if ((175 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 212)) //- Button: R2
-				{
-					declicked = true;
-					return 6;
-				}
-				if ((223 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 259)) //- Button: R3
-				{
-					declicked = true;
-					return 7;
-				}
-				if ((270 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 308)) //- Button: R4
-				{
-					declicked = true;
-					return 8;
-				}
+				return 2;
 			}
-			if ((209 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 255) && !cash_large_visible) //- Column 1 Keypad
+			if ((221 <= y) && (y <= 259)) //- Button: L3
 			{
-				if ((410 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 449)) //- Key: 1
-				{
-					declicked = true;
-					return 9;
-				}
-				if ((457 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 496)) //- Key: 4
-				{
-					declicked = true;
-					return 10;
-				}
-				if ((504 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 543)) //- Key: 7
-				{
-					declicked = true;
-					return 11;
-				}
+				return 3;
 			}
-			if ((264 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 310) && !cash_large_visible) //- Column 2 Keypad
+			if ((269 <= y) && (y <= 305)) //- Button: L4
 			{
-				if ((410 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 449)) //- Key: 2
-				{
-					declicked = true;
-					return 12;
-				}
-				if ((457 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 496)) //- Key: 5
-				{
-					declicked = true;
-					return 13;
-				}
-				if ((504 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 543)) //- Key: 8
-				{
-					declicked = true;
-					return 14;
-				}
-				if ((551 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 590)) //- Key 0
-				{
-					declicked = true;
-					return 15;
-				}
+				return 4;
 			}
-			if ((319 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 365) && !cash_large_visible) //- Column 3 Keypad
+		}
+		if ((588 <= x) && (x <= 632)) //- Right Column Screen Buttons
+		{
+			if ((127 <= y) && (y <= 163)) //- Button: R1
 			{
-				if ((410 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 449)) //- Key: 3
-				{
-					declicked = true;
-					return 16;
-				}
-				if ((457 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 496)) //- Key: 6
-				{
-					declicked = true;
-					return 17;
-				}
-				if ((504 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 543)) //- Key: 9
-				{
-					declicked = true;
-					return 18;
-				}
+				return 5;
 			}
-			if ((385 <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= 455) && !cash_large_visible) //- Column 4 Keypad
+			if ((175 <= y) && (y <= 212)) //- Button: R2
 			{
-				if ((457 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 496)) //- Button: Clear
-				{
-					declicked = true;
-					return 19;
-				}
-				if ((504 <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= 543)) //- Button: OK
-				{
-					declicked = true;
-					return 20;
-				}
+				return 6;
 			}
-			if ((card_sprite.getGlobalBounds().left <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= (card_sprite.getGlobalBounds().left + card_sprite.getGlobalBounds().width))) //- Object: card (x axis)
+			if ((223 <= y) && (y <= 259)) //- Button: R3
 			{
-				if ((card_sprite.getGlobalBounds().top <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= (card_sprite.getGlobalBounds().top + card_sprite.getGlobalBounds().height)) && card_visible) //- Object: card (y axis) and visibility
-				{
-					declicked = true;
-					return 21;
-				}
+				return 7;
 			}
-			if ((cash_large_sprite.getGlobalBounds().left <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= (cash_large_sprite.getGlobalBounds().left + cash_large_sprite.getGlobalBounds().width))) //- Object: cash_large (x axis)
+			if ((270 <= y) && (y <= 308)) //- Button: R4
 			{
-				if ((cash_large_sprite.getGlobalBounds().top <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= (cash_large_sprite.getGlobalBounds().top + cash_large_sprite.getGlobalBounds().height)) && cash_large_visible) //- Object: cash_large (y axis) and visibility
-				{
-					declicked = true;
-					return 22;
-				}
+				return 8;
 			}
-			if ((cash_small_sprite.getGlobalBounds().left <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= (cash_small_sprite.getGlobalBounds().left + cash_small_sprite.getGlobalBounds().width))) //- Object: cash_small (x axis)
+		}
+		if ((209 <= x) && (x <= 255) && !cash_large_visible) //- Column 1 Keypad
+		{
+			if ((410 <= y) && (y <= 449)) //- Key: 1
 			{
-				if ((cash_small_sprite.getGlobalBounds().top <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= (cash_small_sprite.getGlobalBounds().top + cash_small_sprite.getGlobalBounds().height)) && cash_small_visible) //- Object: cash_small (y axis) and visibility
-				{
-					declicked = true;
-					return 23;
-				}
+				return 9;
 			}
-			if ((receipt_sprite.getGlobalBounds().left <= sf::Mouse::getPosition(window).x) && (sf::Mouse::getPosition(window).x <= (receipt_sprite.getGlobalBounds().left + receipt_sprite.getGlobalBounds().width))) //- Object: receipt (x axis)
+			if ((457 <= y) && (y <= 496)) //- Key: 4
 			{
-				if ((receipt_sprite.getGlobalBounds().top <= sf::Mouse::getPosition(window).y) && (sf::Mouse::getPosition(window).y <= (receipt_sprite.getGlobalBounds().top + receipt_sprite.getGlobalBounds().height)) && receipt_visible) //- Object: receipt (y axis) and visibility
-				{
-					declicked = true;
-					return 24;
-				}
+				return 10;
+			}
+			if ((504 <= y) && (y <= 543)) //- Key: 7
+			{
+				return 11;
+			}
+		}
+		if ((264 <= x) && (x <= 310) && !cash_large_visible) //- Column 2 Keypad
+		{
+			if ((410 <= y) && (y <= 449)) //- Key: 2
+			{
+				return 12;
+			}
+			if ((457 <= y) && (y <= 496)) //- Key: 5
+			{
+				return 13;
+			}
+			if ((504 <= y) && (y <= 543)) //- Key: 8
+			{
+				return 14;
+			}
+			if ((551 <= y) && (y <= 590)) //- Key 0
+			{
+				return 15;
+			}
+		}
+		if ((319 <= x) && (x <= 365) && !cash_large_visible) //- Column 3 Keypad
+		{
+			if ((410 <= y) && (y <= 449)) //- Key: 3
+			{
+				return 16;
+			}
+			if ((457 <= y) && (y <= 496)) //- Key: 6
+			{
+				return 17;
+			}
+			if ((504 <= y) && (y <= 543)) //- Key: 9
+			{
+				return 18;
+			}
+		}
+		if ((385 <= x) && (x <= 455) && !cash_large_visible) //- Column 4 Keypad
+		{
+			if ((410 <= y) && (y <= 449)) //- Button: Cancel
+			{
+				return 25;
+			}
+			if ((457 <= y) && (y <= 496)) //- Button: Clear
+			{
+				return 19;
+			}
+			if ((504 <= y) && (y <= 543)) //- Button: OK
+			{
+				return 20;
+			}
+		}
+		if ((card_sprite.getGlobalBounds().left <= x) && (x <= (card_sprite.getGlobalBounds().left + card_sprite.getGlobalBounds().width))) //- Object: card (x axis)
+		{
+			if ((card_sprite.getGlobalBounds().top <= y) && (y <= (card_sprite.getGlobalBounds().top + card_sprite.getGlobalBounds().height)) && card_visible) //- Object: card (y axis) and visibility
+			{
+				return 21;
+			}
+		}
+		if ((cash_large_sprite.getGlobalBounds().left <= x) && (x <= (cash_large_sprite.getGlobalBounds().left + cash_large_sprite.getGlobalBounds().width))) //- Object: cash_large (x axis)
+		{
+			if ((cash_large_sprite.getGlobalBounds().top <= y) && (y <= (cash_large_sprite.getGlobalBounds().top + cash_large_sprite.getGlobalBounds().height)) && cash_large_visible) //- Object: cash_large (y axis) and visibility
+			{
+				return 22;
+			}
+		}
+		if ((cash_small_sprite.getGlobalBounds().left <= x) && (x <= (cash_small_sprite.getGlobalBounds().left + cash_small_sprite.getGlobalBounds().width))) //- Object: cash_small (x axis)
+		{
+			if ((cash_small_sprite.getGlobalBounds().top <= y) && (y <= (cash_small_sprite.getGlobalBounds().top + cash_small_sprite.getGlobalBounds().height)) && cash_small_visible) //- Object: cash_small (y axis) and visibility
+			{
+				return 23;
+			}
+		}
+		if ((receipt_sprite.getGlobalBounds().left <= x) && (x <= (receipt_sprite.getGlobalBounds().left + receipt_sprite.getGlobalBounds().width))) //- Object: receipt (x axis)
+		{
+			if ((receipt_sprite.getGlobalBounds().top <= y) && (y <= (receipt_sprite.getGlobalBounds().top + receipt_sprite.getGlobalBounds().height)) && receipt_visible) //- Object: receipt (y axis) and visibility
+			{
+				return 24;
+			}
+		}
+		if ((12 <= x) && (x <= 92)) //- Exit Button (x axis)
+		{
+			if ((563 <= y) && (y <= 603)) //- Exit Button (y axis)
+			{
+				return 26;
 			}
 		}
 		return 0;
@@ -588,590 +552,614 @@ private:
 		//======================================================================================================================================================================================================================
 		//======================================================================================================================================================================================================================
 
+		int clickableObjectCode = -1;
+		if (outstanding_interaction_event != nullptr)
+		{
+			clickableObjectCode = get_clickable_object_code(outstanding_interaction_event->x, outstanding_interaction_event->y);
+			delete outstanding_interaction_event;
+			outstanding_interaction_event = nullptr;
+		}
+
 		switch (scr_state)
 		{
-		case 1: //- (1) Insert Card
-			if (get_mouse_input() == 21)
-			{
-				event_routine(RoutineCode::CARD_IN);
-				scr_state = 23;
-			}
-			break;
-		case 2: //- (2) Insert PIN
-			if (pin_count < 4)
-			{
-				switch (get_mouse_input())
+			case 1: //- (1) Insert Card
+				if (clickableObjectCode == 21)
 				{
-				case 9: //- 1
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 1;
-					pin_count++;
-					break;
-				case 10://- 4
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 4;
-					pin_count++;
-					break;
-				case 11://- 7
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 7;
-					pin_count++;
-					break;
-				case 12://- 2
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 2;
-					pin_count++;
-					break;
-				case 13://- 5
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 5;
-					pin_count++;
-					break;
-				case 14://- 8
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 8;
-					pin_count++;
-					break;
-				case 15://- 0
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 0;
-					pin_count++;
-					break;
-				case 16://- 3
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 3;
-					pin_count++;
-					break;
-				case 17://- 6
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 6;
-					pin_count++;
-					break;
-				case 18://- 9
-					event_routine(RoutineCode::KEY_SOUND);
-					pin = pin * 10 + 9;
-					pin_count++;
-					break;
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					pin_count = 0;
-					pin = 0;
-					break;
+					event_routine(RoutineCode::CARD_IN);
+					scr_state = 23;
 				}
-			}
-			if (pin_count == 4)
-			{
-				switch (get_mouse_input())
+				break;
+			case 2: //- (2) Insert PIN
+				if (pin_count < 4)
 				{
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					pin_count = 0;
-					pin = 0;
-					break;
-				case 20://- OK
-					event_routine(RoutineCode::MENU_SOUND);
-					if (pin == client.at(0).pin)
+					switch (clickableObjectCode)
 					{
-						oss << get_time_cli() << "Cardholder successfully authenticated:"; log_out(oss.str());
-						oss << "\t\t\t  Full Name: " << client.at(0).last_name << " " << client.at(0).first_name; log_out(oss.str());
-						oss << "\t\t\t  IBAN: " << client.at(0).iban; log_out(oss.str());
-						scr_state = 3;
+						case 9: //- 1
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 1;
+							pin_count++;
+							break;
+						case 10://- 4
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 4;
+							pin_count++;
+							break;
+						case 11://- 7
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 7;
+							pin_count++;
+							break;
+						case 12://- 2
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 2;
+							pin_count++;
+							break;
+						case 13://- 5
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 5;
+							pin_count++;
+							break;
+						case 14://- 8
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 8;
+							pin_count++;
+							break;
+						case 15://- 0
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 0;
+							pin_count++;
+							break;
+						case 16://- 3
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 3;
+							pin_count++;
+							break;
+						case 17://- 6
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 6;
+							pin_count++;
+							break;
+						case 18://- 9
+							event_routine(RoutineCode::KEY_SOUND);
+							pin = pin * 10 + 9;
+							pin_count++;
+							break;
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
+							pin_count = 0;
+							pin = 0;
+							break;
 					}
-					else
-					{
-						pin_retry++;
-						if (pin_retry == 3)
-						{
-							oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_out(oss.str());
-							scr_state = 22;
-						}
-						else
-						{
-							oss << get_time_cli() << "Cardholder entered a wrong PIN"; log_out(oss.str());
-							scr_state = 21;
-						}
-					}
-					pin = 0;
-					pin_count = 0;
-					break;
 				}
-			}
-			break;
-		case 3: //- (3) MAIN MENU
-			switch (get_mouse_input())
-			{
-			case 1:
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 4;
-				break;
-			case 5:
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 11;
-				break;
-			case 7:
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 17;
-				break;
-			}
-			break;
-		case 4: //- (4) Enter amount (Withdraw)
-			if (amount_count < 7)
-			{
-				switch (get_mouse_input())
+				if (pin_count == 4)
 				{
-				case 9: //- 1
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 1;
-					amount_count++;
-					break;
-				case 10://- 4
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 4;
-					amount_count++;
-					break;
-				case 11://- 7
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 7;
-					amount_count++;
-					break;
-				case 12://- 2
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 2;
-					amount_count++;
-					break;
-				case 13://- 5
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 5;
-					amount_count++;
-					break;
-				case 14://- 8
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 8;
-					amount_count++;
-					break;
-				case 15://- 0
-					if (amount)
+					switch (clickableObjectCode)
 					{
-						event_routine(RoutineCode::KEY_SOUND);
-						amount = amount * 10 + 0;
-						amount_count++;
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
+							pin_count = 0;
+							pin = 0;
+							break;
+						case 20://- OK
+							event_routine(RoutineCode::MENU_SOUND);
+							if (pin == client.at(0).pin)
+							{
+								oss << get_time_cli() << "Cardholder successfully authenticated:"; log_out(oss.str());
+								oss << "\t\t\t  Full Name: " << client.at(0).last_name << " " << client.at(0).first_name; log_out(oss.str());
+								oss << "\t\t\t  IBAN: " << client.at(0).iban; log_out(oss.str());
+								scr_state = 3;
+							}
+							else
+							{
+								pin_retry++;
+								if (pin_retry == 3)
+								{
+									oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_out(oss.str());
+									scr_state = 22;
+								}
+								else
+								{
+									oss << get_time_cli() << "Cardholder entered a wrong PIN"; log_out(oss.str());
+									scr_state = 21;
+								}
+							}
+							pin = 0;
+							pin_count = 0;
+							break;
 					}
-					break;
-				case 16://- 3
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 3;
-					amount_count++;
-					break;
-				case 17://- 6
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 6;
-					amount_count++;
-					break;
-				case 18://- 9
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 9;
-					amount_count++;
-					break;
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					amount = 0;
-					amount_count = 0;
-					convert.str("");
-					amount_live_txt = convert.str();
-					break;
-				case 20://- OK
-					if (amount)
-					{
+				}
+				break;
+			case 3: //- (3) MAIN MENU
+				switch (clickableObjectCode)
+				{
+					case 1:
 						event_routine(RoutineCode::MENU_SOUND);
-						amount_count = 0;
-						if (amount <= client.at(0).balance)
-							scr_state = 5;
-						else
-						{
-							scr_state = 10;
+						scr_state = 4;
+						break;
+					case 5:
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 11;
+						break;
+					case 7:
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 17;
+						break;
+				}
+				break;
+			case 4: //- (4) Enter amount (Withdraw)
+				if (amount_count < 7)
+				{
+					switch (clickableObjectCode)
+					{
+						case 9: //- 1
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 1;
+							amount_count++;
+							break;
+						case 10://- 4
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 4;
+							amount_count++;
+							break;
+						case 11://- 7
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 7;
+							amount_count++;
+							break;
+						case 12://- 2
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 2;
+							amount_count++;
+							break;
+						case 13://- 5
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 5;
+							amount_count++;
+							break;
+						case 14://- 8
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 8;
+							amount_count++;
+							break;
+						case 15://- 0
+							if (amount)
+							{
+								event_routine(RoutineCode::KEY_SOUND);
+								amount = amount * 10 + 0;
+								amount_count++;
+							}
+							break;
+						case 16://- 3
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 3;
+							amount_count++;
+							break;
+						case 17://- 6
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 6;
+							amount_count++;
+							break;
+						case 18://- 9
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 9;
+							amount_count++;
+							break;
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
 							amount = 0;
+							amount_count = 0;
+							convert.str("");
+							amount_live_txt = convert.str();
+							break;
+						case 20://- OK
+							if (amount)
+							{
+								event_routine(RoutineCode::MENU_SOUND);
+								amount_count = 0;
+								if (amount <= client.at(0).balance)
+									scr_state = 5;
+								else
+								{
+									scr_state = 10;
+									amount = 0;
+								}
+								amount_live_txt = "";
+								convert.str("");
+							}
+							break;
+					}
+				}
+				if (amount_count == 7)
+				{
+					switch (clickableObjectCode)
+					{
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
+							amount = 0;
+							amount_count = 0;
+							convert.str("");
+							amount_live_txt = convert.str();
+							break;
+						case 20://- OK
+							event_routine(RoutineCode::MENU_SOUND);
+							amount_count = 0;
+							if (amount <= client.at(0).balance)
+								scr_state = 5;
+							else
+							{
+								scr_state = 10;
+								amount = 0;
+							}
+							amount_live_txt = "";
+							convert.str("");
+							break;
+					}
+				}
+				convert.str("");
+				convert << amount;
+				amount_live_txt = convert.str();
+				break;
+			case 5: //- (5) Confirm (Withdraw)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 6;
+						break;
+					case 7: //- No (R3)
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 4;
+						amount = 0; amount_count = 0;
+						amount_live_txt = "";
+						convert.str("");
+						break;
+				}
+				break;
+			case 6: //- (6) Processing (Withdraw)
+				client.at(0).balance = client.at(0).balance - amount;
+				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " withdrew " << amount << " RON"; log_out(oss.str());
+				amount = 0; amount_count = 0;
+				amount_live_txt = "";
+				convert.str("");
+				event_routine(RoutineCode::CASH_LARGE_OUT);
+				scr_state = 7;
+				break;
+			case 7: //- (7) Receipt? (Withdraw)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						if (!cash_large_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							event_routine(RoutineCode::RECEIPT_OUT);
+							scr_state = 8;
 						}
+						break;
+					case 7: //- No (R3)
+						if (!cash_large_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							scr_state = 8;
+						}
+						break;
+					case 22: //- Cash Large
+						cash_large_visible = false;
+						break;
+				}
+				break;
+			case 8: //- (8) Another transaction? (Withdraw)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						if (!receipt_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							scr_state = 3;
+						}
+						break;
+					case 7: //- No (R3)
+						if (!receipt_visible)
+						{
+							if (!card_visible)
+							{
+								event_routine(RoutineCode::MENU_SOUND);
+								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								event_routine(RoutineCode::CARD_OUT);
+							}
+						}
+						break;
+					case 24: //- Receipt
+						receipt_visible = false;
+						break;
+				}
+				break;
+			case 10: //- (10) Not Enough Funds
+				switch (clickableObjectCode)
+				{
+					case 7:
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 4;
+						break;
+				}
+				break;
+			case 11: //- (11) Enter Amount (Deposit)
+				if (amount_count < 7)
+				{
+					switch (clickableObjectCode)
+					{
+						case 9: //- 1
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 1;
+							amount_count++;
+							break;
+						case 10://- 4
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 4;
+							amount_count++;
+							break;
+						case 11://- 7
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 7;
+							amount_count++;
+							break;
+						case 12://- 2
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 2;
+							amount_count++;
+							break;
+						case 13://- 5
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 5;
+							amount_count++;
+							break;
+						case 14://- 8
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 8;
+							amount_count++;
+							break;
+						case 15://- 0
+							if (amount)
+							{
+								event_routine(RoutineCode::KEY_SOUND);
+								amount = amount * 10 + 0;
+								amount_count++;
+							}
+							break;
+						case 16://- 3
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 3;
+							amount_count++;
+							break;
+						case 17://- 6
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 6;
+							amount_count++;
+							break;
+						case 18://- 9
+							event_routine(RoutineCode::KEY_SOUND);
+							amount = amount * 10 + 9;
+							amount_count++;
+							break;
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
+							amount = 0;
+							amount_count = 0;
+							convert.str("");
+							amount_live_txt = convert.str();
+							break;
+						case 20://- OK
+							if (amount)
+							{
+								event_routine(RoutineCode::MENU_SOUND);
+								amount_count = 0;
+								scr_state = 12;
+								amount_live_txt = "";
+								convert.str("");
+							}
+							break;
+					}
+				}
+				if (amount_count == 7)
+				{
+					switch (clickableObjectCode)
+					{
+						case 19://- Clear
+							event_routine(RoutineCode::MENU_SOUND);
+							amount = 0;
+							amount_count = 0;
+							convert.str("");
+							amount_live_txt = convert.str();
+							break;
+						case 20://- OK
+							event_routine(RoutineCode::MENU_SOUND);
+							amount_count = 0;
+							scr_state = 12;
+							amount_live_txt = "";
+							convert.str("");
+							break;
+					}
+				}
+				convert.str("");
+				convert << amount;
+				amount_live_txt = convert.str();
+				break;
+			case 12: //- Confirm (Deposit)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 13;
+						break;
+					case 7: //- No (R3)
+						event_routine(RoutineCode::MENU_SOUND);
+						scr_state = 11;
+						amount = 0; amount_count = 0;
 						amount_live_txt = "";
 						convert.str("");
-					}
-					break;
+						break;
 				}
-			}
-			if (amount_count == 7)
-			{
-				switch (get_mouse_input())
-				{
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					amount = 0;
-					amount_count = 0;
-					convert.str("");
-					amount_live_txt = convert.str();
-					break;
-				case 20://- OK
-					event_routine(RoutineCode::MENU_SOUND);
-					amount_count = 0;
-					if (amount <= client.at(0).balance)
-						scr_state = 5;
-					else
-					{
-						scr_state = 10;
-						amount = 0;
-					}
-					amount_live_txt = "";
-					convert.str("");
-					break;
-				}
-			}
-			convert.str("");
-			convert << amount;
-			amount_live_txt = convert.str();
-			break;
-		case 5: //- (5) Confirm (Withdraw)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 6;
 				break;
-			case 7: //- No (R3)
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 4;
+			case 13: //- Insert Cash
+				cash_small_visible = true;
+				switch (clickableObjectCode)
+				{
+					case 23:
+						event_routine(RoutineCode::CASH_SMALL_IN);
+						scr_state = 24;
+						break;
+				}
+				break;
+			case 14: //- Receipt? (Deposit)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						if (!cash_small_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							event_routine(RoutineCode::RECEIPT_OUT);
+							scr_state = 15;
+						}
+						break;
+					case 7: //- No (R3)
+						if (!cash_small_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							scr_state = 15;
+						}
+						break;
+				}
+			case 15: //- Another transaction? (Deposit)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						if (!receipt_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							scr_state = 3;
+						}
+						break;
+					case 7: //- No (R3)
+						if (!receipt_visible)
+						{
+							if (!card_visible)
+							{
+								event_routine(RoutineCode::MENU_SOUND);
+								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								event_routine(RoutineCode::CARD_OUT);
+							}
+						}
+						break;
+					case 24: //- Receipt
+						receipt_visible = false;
+						break;
+				}
+				break;
+			case 17: //- Processing (Account Balance)
+				sf::sleep(card_snd_buf.getDuration());
+				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << "'s balance is: " << client.at(0).balance << " RON"; log_out(oss.str());
 				amount = 0; amount_count = 0;
 				amount_live_txt = "";
 				convert.str("");
+				scr_state = 18;
 				break;
-			}
-			break;
-		case 6: //- (6) Processing (Withdraw)
-			client.at(0).balance = client.at(0).balance - amount;
-			oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " withdrew " << amount << " RON"; log_out(oss.str());
-			amount = 0; amount_count = 0;
-			amount_live_txt = "";
-			convert.str("");
-			event_routine(RoutineCode::CASH_LARGE_OUT);
-			scr_state = 7;
-			break;
-		case 7: //- (7) Receipt? (Withdraw)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				if (!cash_large_visible)
+			case 18: //- Balance = ***. Receipt?
+				switch (clickableObjectCode)
 				{
-					event_routine(RoutineCode::MENU_SOUND);
-					event_routine(RoutineCode::RECEIPT_OUT);
-					scr_state = 8;
-				}
-				break;
-			case 7: //- No (R3)
-				if (!cash_large_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 8;
-				}
-				break;
-			case 22: //- Cash Large
-				cash_large_visible = false;
-				break;
-			}
-			break;
-		case 8: //- (8) Another transaction? (Withdraw)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				if (!receipt_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 3;
-				}
-				break;
-			case 7: //- No (R3)
-				if (!receipt_visible)
-				{
-					if (!card_visible)
-					{
+					case 1: //- Yes (L1)
 						event_routine(RoutineCode::MENU_SOUND);
-						oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
-						event_routine(RoutineCode::CARD_OUT);
-					}
-					declicked = true;
-				}
-				break;
-			case 24: //- Receipt
-				receipt_visible = false;
-				break;
-			}
-			break;
-		case 10: //- (10) Not Enough Funds
-			switch (get_mouse_input())
-			{
-			case 7:
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 4;
-				break;
-			}
-			break;
-		case 11: //- (11) Enter Amount (Deposit)
-			if (amount_count < 7)
-			{
-				switch (get_mouse_input())
-				{
-				case 9: //- 1
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 1;
-					amount_count++;
-					break;
-				case 10://- 4
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 4;
-					amount_count++;
-					break;
-				case 11://- 7
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 7;
-					amount_count++;
-					break;
-				case 12://- 2
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 2;
-					amount_count++;
-					break;
-				case 13://- 5
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 5;
-					amount_count++;
-					break;
-				case 14://- 8
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 8;
-					amount_count++;
-					break;
-				case 15://- 0
-					if (amount)
-					{
-						event_routine(RoutineCode::KEY_SOUND);
-						amount = amount * 10 + 0;
-						amount_count++;
-					}
-					break;
-				case 16://- 3
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 3;
-					amount_count++;
-					break;
-				case 17://- 6
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 6;
-					amount_count++;
-					break;
-				case 18://- 9
-					event_routine(RoutineCode::KEY_SOUND);
-					amount = amount * 10 + 9;
-					amount_count++;
-					break;
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					amount = 0;
-					amount_count = 0;
-					convert.str("");
-					amount_live_txt = convert.str();
-					break;
-				case 20://- OK
-					if (amount)
-					{
+						event_routine(RoutineCode::RECEIPT_OUT);
+						scr_state = 19;
+						break;
+					case 7: //- No (R3)
 						event_routine(RoutineCode::MENU_SOUND);
-						amount_count = 0;
-						scr_state = 12;
-						amount_live_txt = "";
-						convert.str("");
-					}
-					break;
+						scr_state = 19;
+						break;
 				}
-			}
-			if (amount_count == 7)
-			{
-				switch (get_mouse_input())
-				{
-				case 19://- Clear
-					event_routine(RoutineCode::MENU_SOUND);
-					amount = 0;
-					amount_count = 0;
-					convert.str("");
-					amount_live_txt = convert.str();
-					break;
-				case 20://- OK
-					event_routine(RoutineCode::MENU_SOUND);
-					amount_count = 0;
-					scr_state = 12;
-					amount_live_txt = "";
-					convert.str("");
-					break;
-				}
-			}
-			convert.str("");
-			convert << amount;
-			amount_live_txt = convert.str();
-			break;
-		case 12: //- Confirm (Deposit)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 13;
+				balance.str("");
+				balance << client.at(0).balance << " RON";
+				amount_live_txt = balance.str();
 				break;
-			case 7: //- No (R3)
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 11;
+			case 19: //- Another Transaction? (Account Balance)
+				switch (clickableObjectCode)
+				{
+					case 1: //- Yes (L1)
+						if (!receipt_visible)
+						{
+							event_routine(RoutineCode::MENU_SOUND);
+							scr_state = 3;
+						}
+						break;
+					case 7: //- No (R3)
+						if (!receipt_visible)
+						{
+							if (!card_visible)
+							{
+								event_routine(RoutineCode::MENU_SOUND);
+								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								event_routine(RoutineCode::CARD_OUT);
+							}
+						}
+						break;
+					case 24: //- Receipt
+						receipt_visible = false;
+						break;
+				}
+				break;
+			case 21: //- (21) Wrong PIN
+				if (clickableObjectCode == 20)
+				{
+					event_routine(RoutineCode::MENU_SOUND);
+					scr_state = 2;
+				}
+				break;
+			case 22: //- (22) Account suspended
+				blocked = true;
+				if (!accountSuspendedFlag)
+				{
+					oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_out(oss.str());
+					accountSuspendedFlag = true;
+				}
+				if (clickableObjectCode == 20)
+				{
+					event_routine(RoutineCode::MENU_SOUND);
+					event_routine(RoutineCode::CARD_OUT);
+				}
+				break;
+			case 23: //- (23) Processing (for card in)
+				sf::sleep(card_snd_buf.getDuration());
+				if (!blocked)
+					scr_state = 2;
+				else
+					scr_state = 22;
+				break;
+			case 24: //- (24) Processing (deposit)
+				client.at(0).balance = client.at(0).balance + amount;
+				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " deposited " << amount << " RON"; log_out(oss.str());
+				sf::sleep(card_snd_buf.getDuration());
 				amount = 0; amount_count = 0;
 				amount_live_txt = "";
 				convert.str("");
+				scr_state = 14;
 				break;
-			}
-			break;
-		case 13: //- Insert Cash
-			cash_small_visible = true;
-			switch (get_mouse_input())
-			{
-			case 23:
-				event_routine(RoutineCode::CASH_SMALL_IN);
-				scr_state = 24;
-				break;
-			}
-			break;
-		case 14: //- Receipt? (Deposit)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				if (!cash_small_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					event_routine(RoutineCode::RECEIPT_OUT);
-					scr_state = 15;
+		}
+
+		if (clickableObjectCode == 25) //- Button: Cancel
+		{
+			if (!card_visible) {
+				menu_snd.play();
+				if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 &&
+					scr_state != 23) {
+					oss << get_time_cli() << client.at(0).last_name << " "
+						<< client.at(0).first_name << " canceled the session";
+					log_out(oss.str());
 				}
-				break;
-			case 7: //- No (R3)
-				if (!cash_small_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 15;
-				}
-				break;
-			}
-		case 15: //- Another transaction? (Deposit)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				if (!receipt_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 3;
-				}
-				break;
-			case 7: //- No (R3)
-				if (!receipt_visible)
-				{
-					if (!card_visible)
-					{
-						event_routine(RoutineCode::MENU_SOUND);
-						oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
-						event_routine(RoutineCode::CARD_OUT);
-					}
-					declicked = true;
-				}
-				break;
-			case 24: //- Receipt
-				receipt_visible = false;
-				break;
-			}
-			break;
-		case 17: //- Processing (Account Balance)
-			sf::sleep(card_snd_buf.getDuration());
-			oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << "'s balance is: " << client.at(0).balance << " RON"; log_out(oss.str());
-			amount = 0; amount_count = 0;
-			amount_live_txt = "";
-			convert.str("");
-			scr_state = 18;
-			break;
-		case 18: //- Balance = ***. Receipt?
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				event_routine(RoutineCode::MENU_SOUND);
-				event_routine(RoutineCode::RECEIPT_OUT);
-				scr_state = 19;
-				break;
-			case 7: //- No (R3)
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 19;
-				break;
-			}
-			balance.str("");
-			balance << client.at(0).balance << " RON";
-			amount_live_txt = balance.str();
-			break;
-		case 19: //- Another Transaction? (Account Balance)
-			switch (get_mouse_input())
-			{
-			case 1: //- Yes (L1)
-				if (!receipt_visible)
-				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 3;
-				}
-				break;
-			case 7: //- No (R3)
-				if (!receipt_visible)
-				{
-					if (!card_visible)
-					{
-						event_routine(RoutineCode::MENU_SOUND);
-						oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
-						event_routine(RoutineCode::CARD_OUT);
-					}
-					declicked = true;
-				}
-				break;
-			case 24: //- Receipt
-				receipt_visible = false;
-				break;
-			}
-			break;
-		case 21: //- (21) Wrong PIN
-			if (get_mouse_input() == 20)
-			{
-				event_routine(RoutineCode::MENU_SOUND);
-				scr_state = 2;
-			}
-			break;
-		case 22: //- (22) Account suspended
-			blocked = true;
-			if (!accountSuspendedFlag)
-			{
-				oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_out(oss.str());
-				accountSuspendedFlag = true;
-			}
-			if (get_mouse_input() == 20)
-			{
-				event_routine(RoutineCode::MENU_SOUND);
 				event_routine(RoutineCode::CARD_OUT);
 			}
-			break;
-		case 23: //- (23) Processing (for card in)
-			sf::sleep(card_snd_buf.getDuration());
-			if (!blocked)
-				scr_state = 2;
-			else
-				scr_state = 22;
-			break;
-		case 24: //- (24) Processing (deposit)
-			client.at(0).balance = client.at(0).balance + amount;
-			oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " deposited " << amount << " RON"; log_out(oss.str());
-			sf::sleep(card_snd_buf.getDuration());
-			amount = 0; amount_count = 0;
-			amount_live_txt = "";
-			convert.str("");
-			scr_state = 14;
-			break;
+		}
+		if (clickableObjectCode == 26) //- Button: Exit
+		{
+			click_snd.play();
+			window.close();
 		}
 	}
 
