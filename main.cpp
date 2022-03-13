@@ -13,10 +13,10 @@
 #define TARGET_WIN
 #elif defined(TARGET_OS_MAC)
 #define TARGET_MAC
-#elif defined(__linux__) || defined(__unix__)
-#define TARGET_LINUX
 #elif defined(__ANDROID__)
 #define TARGET_ANDROID
+#elif defined(__linux__) || defined(__unix__)
+#define TARGET_LINUX
 #endif
 
 #ifdef TARGET_WIN
@@ -158,7 +158,7 @@ private:
 		oss << get_time_cli() << "ATM is now powered on"; log_out(oss.str());
 
 		//- Load database
-		database.open("res/database/database.txt");
+		database.open(res("database/database.txt"));
 		// Note: This will fail on Android, std::ifstream cannot read from the apk file,
 		//  which stores the text file.
 		// In order to properly read asset files in android, use the Asset NDK Module
@@ -177,7 +177,7 @@ private:
 		}
 
 		//- Load fonts
-		if (font.loadFromFile("res/courier_new.ttf"))
+		if (font.loadFromFile(res(res("courier_new.ttf"))))
 		{
 			oss << get_time_cli() << "Font loaded"; log_out(oss.str());
 		}
@@ -188,11 +188,11 @@ private:
 		}
 
 		//- Load textures
-		if (!backgnd_texture.loadFromFile("res/backgnd_texture.png") ||
-			!card_texture.loadFromFile("res/card_texture.png") ||
-			!cash_large_texture.loadFromFile("res/cash_large_texture.jpg") ||
-			!cash_small_texture.loadFromFile("res/cash_small_texture.jpg") ||
-			!receipt_texture.loadFromFile("res/receipt_texture.jpg"))
+		if (!backgnd_texture.loadFromFile(res("backgnd_texture.png")) ||
+			!card_texture.loadFromFile(res("card_texture.png")) ||
+			!cash_large_texture.loadFromFile(res("cash_large_texture.jpg")) ||
+			!cash_small_texture.loadFromFile(res("cash_small_texture.jpg")) ||
+			!receipt_texture.loadFromFile(res("receipt_texture.jpg")))
 		{
 			oss << get_time_cli() << "One or more textures not found"; log_out(oss.str());
 			window.close();
@@ -204,7 +204,14 @@ private:
 
 		//- Load sounds in the sound buffer
 		std::vector<sf::SoundBuffer*> sound_ptr = { &card_snd_buf, &menu_snd_buf, &click_snd_buf, &key_snd_buf, &cash_snd_buf, &print_receipt_snd_buf };
-		std::vector<std::string> sound_arr = { "res/card_snd.wav", "res/menu_snd.wav", "res/click_snd.wav", "res/key_snd.wav", "res/cash_snd.wav", "res/print_receipt_snd.wav" };
+		std::vector<std::string> sound_arr = {
+		        res("card_snd.wav"),
+		        res("menu_snd.wav"),
+		        res("click_snd.wav"),
+		        res("key_snd.wav"),
+		        res("cash_snd.wav"),
+		        res("print_receipt_snd.wav")
+		};
 		bool sound_ok = true;
 		//if (sound_ptr.size() != sound_arr.size()) {  }
 		for (int i = 0; i < sound_ptr.size(); ++i)
@@ -1379,7 +1386,7 @@ private:
 #ifdef TARGET_WIN
 		SYSTEMTIME systime;
 		GetLocalTime(&systime);
-		sprintf_s(str, "res/logs/log-%04d.%02d.%02d-%02d.%02d.%02d.txt", systime.wYear, systime.wMonth, systime.wDay, systime.wHour, systime.wMinute, systime.wSecond);
+		sprintf_s(str, res("logs/log-%04d.%02d.%02d-%02d.%02d.%02d.txt"), systime.wYear, systime.wMonth, systime.wDay, systime.wHour, systime.wMinute, systime.wSecond);
 #endif
 		return str;
 	}
@@ -1417,6 +1424,19 @@ private:
 		pText->setOutlineColor(color);
 		pText->setFillColor(color);
 	}
+
+	inline std::string res(std::string general_path)
+    {
+	    return get_res_file_path(general_path);
+    }
+
+	inline std::string get_res_file_path(std::string general_path)
+    {
+#ifdef TARGET_ANDROID
+	    return general_path;
+#endif
+	    return "res/" + general_path;
+    }
 
 public:
 	void run()
