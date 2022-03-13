@@ -1,5 +1,5 @@
 /*
-// ATM-Software-CPP © Radu Salagean 2015
+// ATM-Software-CPP ï¿½ Radu Salagean 2015
 //
 // Rebuild & Port by XtremePrime 2021:
 // -- In the spirit of the original, all code was kept in one .cpp file
@@ -15,6 +15,8 @@
 #define TARGET_MAC
 #elif defined(__linux__) || defined(__unix__)
 #define TARGET_LINUX
+#elif defined(__ANDROID__)
+#define TARGET_ANDROID
 #endif
 
 #ifdef TARGET_WIN
@@ -157,16 +159,22 @@ private:
 
 		//- Load database
 		database.open("res/database/database.txt");
+		// Note: This will fail on Android, std::ifstream cannot read from the apk file,
+		//  which stores the text file.
+		// In order to properly read asset files in android, use the Asset NDK Module
+		// Links:
+		// https://developer.android.com/ndk/reference/group/asset
+		// https://stackoverflow.com/questions/13317387/how-to-get-file-in-assets-from-android-ndk/13317651#13317651
 		if (!database.fail())
 		{
 			oss << get_time_cli() << "User database loaded"; log_out(oss.str());
+			load_clients();
 		}
 		else
 		{
 			oss << get_time_cli() << "User database not found"; log_out(oss.str());
-			window.close();
+			load_placeholder_client();
 		}
-		load_clients();
 
 		//- Load fonts
 		if (font.loadFromFile("res/courier_new.ttf"))
@@ -1323,6 +1331,19 @@ private:
 		iban_scr_str << client.at(0).iban;
 	}
 
+	void load_placeholder_client()
+	{
+		User u;
+		u.iban = "RO-13-ABBK-0895-9965-0449-91";
+		u.last_name = "Salagean";
+		u.first_name = "Radu";
+		u.pin = 1234;
+		u.balance = 950;
+		client.push_back(u);
+		username_scr_str << u.last_name << " " << u.first_name;
+		iban_scr_str << u.iban;
+	}
+
 	std::string program_title()
 	{
 		std::ostringstream stream;
@@ -1374,8 +1395,10 @@ private:
 	void terminate()
 	{
 		oss << get_time_cli() << "The ATM is now powered off"; log_out(oss.str());
-		database.close();
-		log.close();
+		if (database.is_open())
+			database.close();
+		if (log.is_open())
+			log.close();
 		system("pause");
 	}
 
