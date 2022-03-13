@@ -57,6 +57,7 @@ private:
 	int amount = 0; unsigned short int amount_count = 0;
 	bool blocked = false;
 	bool accountSuspendedFlag = false;
+	bool windowHasFocus = true;
 
 	//- User Data Structure
 	struct User
@@ -316,12 +317,23 @@ private:
 		balance.str("");
 	}
 
-	void handle_events(sf::Event& event)
+	void handle_events()
 	{
 		while (window.pollEvent(event))
 		{
 			switch (event.type)
 			{
+			// On Android MouseLeft/MouseEntered are (for now) triggered,
+			// whenever the app loses or gains focus.
+			//  ^ comment taken from the official SFML Android Sample Project:
+			// https://github.com/SFML/SFML/blob/2e6c363e644b430fd137a7dbed9836f965796610/examples/android/app/src/main/jni/main.cpp#L137
+			case sf::Event::MouseLeft:
+				windowHasFocus = false;
+				break;
+			case sf::Event::MouseEntered:
+				windowHasFocus = true;
+				break;
+
 			case sf::Event::Closed:
 				window.close();
 				break;
@@ -1497,9 +1509,14 @@ public:
 		init();
 		while (window.isOpen())
 		{
-			handle_events(event);
-			update();
-			render(window);
+			handle_events();
+			if (windowHasFocus)
+			{
+				update();
+				render(window);
+			}
+			else
+				sf::sleep(sf::milliseconds(100));
 		}
 		terminate();
 	}
