@@ -64,3 +64,6 @@ ipch/
 *.user
 *.userosscache
 *.sln.docstates
+
+# macOS
+.DS_Store

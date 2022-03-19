@@ -24,6 +24,10 @@
  #include <windows.h>
 #endif //_WIN32
 
+#ifdef TARGET_ANDROID
+#define SHOW_CURSOR
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -48,6 +52,7 @@ private:
 
 	//- Screen Size
 	const int CANVAS_WIDTH = 960, CANVAS_HEIGHT = 620;
+	sf::Vector2u currentWindowSize;
 
 	//- States
 	bool card_visible = true, cash_large_visible = false, cash_small_visible = false, receipt_visible = false;
@@ -129,6 +134,10 @@ private:
 	//- Outstanding Click / Touch Event
 	sf::Vector2i* outstanding_interaction_event = nullptr;
 
+	//- Cursor
+	const int CURSOR_CIRCLE_RADIUS = 16;
+    sf::CircleShape cursorCircle = sf::CircleShape(CURSOR_CIRCLE_RADIUS);
+
 	//- Standard use enums
 	enum RoutineCode {
 		CARD_IN = 1,
@@ -142,7 +151,7 @@ private:
 
 	void init_win()
 	{
-#ifdef TARGET_ANDROID
+#ifdef TARGET_ANDROID // We support letterbox mode on Android devices
 		screen = sf::VideoMode(sf::VideoMode::getDesktopMode());
 		view.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
 		view.setCenter(view.getSize().x / 2, view.getSize().y / 2);
@@ -155,6 +164,7 @@ private:
 #endif
 		window.setFramerateLimit(60);
 		window.setKeyRepeatEnabled(false);
+		currentWindowSize = window.getSize();
 	}
 
 	// https://github.com/SFML/SFML/wiki/Source:-Letterbox-effect-using-a-view
@@ -192,6 +202,21 @@ private:
 		return view;
 	}
 
+	sf::Vector2i* get_scaled_pointer_coordinates(int originalX, int originalY)
+	{
+#ifdef TARGET_ANDROID
+		int left = view.getViewport().left * currentWindowSize.x;
+		int top = view.getViewport().top * currentWindowSize.y;
+		float scaleX = (currentWindowSize.x - 2 * left) / (float) CANVAS_WIDTH;
+		float scaleY = (currentWindowSize.y - 2 * top) / (float) CANVAS_HEIGHT;
+		int processedX = (originalX - left) / scaleX;
+		int processedY = (originalY - top) / scaleY;
+		return new sf::Vector2i(processedX, processedY);
+#else
+		return new sf::Vector2i(originalX, originalY);
+#endif
+	}
+
 	void init()
 	{
 		//- Create new log file
@@ -227,7 +252,7 @@ private:
 		}
 
 		//- Load fonts
-		if (font.loadFromFile(res(res("courier_new.ttf"))))
+		if (font.loadFromFile(res("courier_new.ttf")))
 		{
 			oss << get_time_cli() << "Font loaded"; log_out(oss.str());
 		}
@@ -304,6 +329,9 @@ private:
 		key_snd.setBuffer(key_snd_buf);
 		cash_snd.setBuffer(cash_snd_buf);
 		print_receipt_snd.setBuffer(print_receipt_snd_buf);
+
+		// Cursor
+		cursorCircle.setFillColor(sf::Color(255, 0, 0, 127));
 	}
 
 	void init_states()
@@ -339,6 +367,7 @@ private:
 				window.close();
 				break;
 			case sf::Event::Resized:
+				currentWindowSize = sf::Vector2u(event.size.width, event.size.height);
 #ifdef TARGET_ANDROID
 				view = getLetterboxView(view, event.size.width, event.size.height);
 				window.setView(view);
@@ -346,14 +375,23 @@ private:
 				break;
 			case sf::Event::TouchBegan:
 				if (event.touch.finger == 0)
-					outstanding_interaction_event = new sf::Vector2i(event.touch.x, event.touch.y);
+					update_pointer_location(event.touch.x, event.touch.y);
 				break;
 			case sf::Event::MouseButtonPressed:
-				sf::Vector2i position = sf::Mouse::getPosition(window);
-				outstanding_interaction_event = new sf::Vector2i(position.x, position.y);
+				update_pointer_location(event.mouseButton.x, event.mouseButton.y);
 				break;
 			}
 		}
+	}
+
+	void update_pointer_location(int rawX, int rawY)
+	{
+		if (outstanding_interaction_event != nullptr) delete outstanding_interaction_event;
+		outstanding_interaction_event = get_scaled_pointer_coordinates(rawX, rawY);
+		cursorCircle.setPosition(
+				outstanding_interaction_event->x - CURSOR_CIRCLE_RADIUS / (float) 2,
+				outstanding_interaction_event->y - CURSOR_CIRCLE_RADIUS / (float) 2
+		);
 	}
 
 	int get_clickable_object_code(int x, int y)
@@ -1177,6 +1215,10 @@ private:
 		if (receipt_visible)
 			window.draw(receipt_sprite);
 		scr_render();
+
+#ifdef SHOW_CURSOR
+		window.draw(cursorCircle);
+#endif
 
 		window.display();
 	}
