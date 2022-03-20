@@ -67,3 +67,7 @@ ipch/
 
 # macOS
 .DS_Store
+
+# ATM
+/atm
+/log*.txt
