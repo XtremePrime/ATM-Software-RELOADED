@@ -4,8 +4,10 @@
 // Rebuild & Port by XtremePrime 2021:
 // -- In the spirit of the original, all code was kept in one .cpp file
 // -- Ported from SFML 2.2 to SFML 2.5.1
-// -- Increased the readibility and modularity
+// -- Increased the readability and modularity
 // -- Future proofed for cross-platform
+//
+// Android port: March 2022 - Radu Salagean
 */
 
 //- Platform definitions
