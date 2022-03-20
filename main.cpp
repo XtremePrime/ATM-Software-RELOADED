@@ -407,6 +407,7 @@ private:
 		{
 			switch (event.type)
 			{
+#ifdef TARGET_ANDROID
 			// On Android MouseLeft/MouseEntered are (for now) triggered,
 			// whenever the app loses or gains focus.
 			//  ^ comment taken from the official SFML Android Sample Project:
@@ -417,7 +418,7 @@ private:
 			case sf::Event::MouseEntered:
 				windowHasFocus = true;
 				break;
-
+#endif
 			case sf::Event::Closed:
 				window.close();
 				break;
