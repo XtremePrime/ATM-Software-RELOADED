@@ -262,7 +262,9 @@ private:
 	void init()
 	{
 		//- Create new log file
+#ifndef TARGET_ANDROID
 		log.open(get_name_log().c_str());
+#endif
 
 		//- Init States
 		init_states();
@@ -1575,7 +1577,7 @@ private:
 	{
         std::chrono::time_point<std::chrono::system_clock> current_time =
                 std::chrono::system_clock::now();
-        return serializeTimePoint(current_time, "logs/log-%Y.%m.%d-%H.%M.%S");
+        return "log-" + serializeTimePoint(current_time, "%Y.%m.%d-%H.%M.%S") + ".txt";
     }
 
 	void log_msg(std::string str)
