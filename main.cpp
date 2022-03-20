@@ -44,6 +44,39 @@
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 
+class ActionTimer
+{
+private:
+	sf::Clock clock;
+	sf::Time target_duration;
+	std::function<void()> callback;
+
+	void release()
+	{
+		delete this;
+	}
+
+public:
+	ActionTimer(sf::Time target_duration, std::function<void()> callback)
+	{
+		this->target_duration = target_duration;
+		this->callback = callback;
+	}
+
+	void startTimer(sf::Time target_duration, std::function<void()> callback)
+	{
+		this->target_duration = target_duration;
+		this->callback = callback;
+	}
+
+	void update()
+	{
+		sf::Time elapsed_time = clock.getElapsedTime();
+		if (elapsed_time <= target_duration) return;
+		callback();
+		release();
+	}
+};
 
 class Atm
 {
@@ -100,6 +133,9 @@ private:
 	sf::SoundBuffer cash_snd_buf;          sf::Sound cash_snd;
 	sf::SoundBuffer print_receipt_snd_buf; sf::Sound print_receipt_snd;
 
+	//- Processing Time
+	sf::Time processing_time = sf::seconds(2);
+
 	//- Text
 	sf::Text scr_clock;
 	sf::Text username_scr;
@@ -140,6 +176,9 @@ private:
 	//- Cursor
 	const int CURSOR_CIRCLE_RADIUS = 16;
     sf::CircleShape cursorCircle = sf::CircleShape(CURSOR_CIRCLE_RADIUS);
+
+    //- Action Timer
+    ActionTimer* actionTimer;
 
 	//- Standard use enums
 	enum RoutineCode {
@@ -351,6 +390,15 @@ private:
 		convert.str("");
 		balance.str("");
 		outstanding_interaction_event = nullptr;
+		actionTimer = nullptr;
+	}
+
+	void handle_action_timer()
+	{
+		if (actionTimer != nullptr)
+		{
+			actionTimer->update();
+		}
 	}
 
 	void handle_events()
@@ -393,12 +441,17 @@ private:
 
 	void update_pointer_location(int rawX, int rawY)
 	{
-		if (outstanding_interaction_event != nullptr) delete outstanding_interaction_event;
-		outstanding_interaction_event = get_scaled_pointer_coordinates(rawX, rawY);
+		sf::Vector2i* position = get_scaled_pointer_coordinates(rawX, rawY);
 		cursorCircle.setPosition(
-				outstanding_interaction_event->x - CURSOR_CIRCLE_RADIUS / (float) 2,
-				outstanding_interaction_event->y - CURSOR_CIRCLE_RADIUS / (float) 2
+				position->x - CURSOR_CIRCLE_RADIUS / (float) 2,
+				position->y - CURSOR_CIRCLE_RADIUS / (float) 2
 		);
+		if (actionTimer != nullptr) {
+			delete position;
+			return; // We have an ongoing timed action, so don't process the event
+		}
+		if (outstanding_interaction_event != nullptr) delete outstanding_interaction_event;
+		outstanding_interaction_event = position;
 	}
 
 	int get_clickable_object_code(int x, int y)
@@ -610,8 +663,9 @@ private:
 			case 1: //- (1) Insert Card
 				if (clickableObjectCode == 21)
 				{
-					event_routine(RoutineCode::CARD_IN);
-					scr_state = 23;
+					event_routine(RoutineCode::CARD_IN, [this]() -> void {
+						scr_state = 23;
+					});
 				}
 				break;
 			case 2: //- (2) Insert PIN
@@ -703,6 +757,7 @@ private:
 								{
 									oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_out(oss.str());
 									scr_state = 22;
+									blocked = true;
 								}
 								else
 								{
@@ -863,13 +918,14 @@ private:
 				}
 				break;
 			case 6: //- (6) Processing (Withdraw)
-				user->balance = user->balance - amount;
-				oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_out(oss.str());
-				amount = 0; amount_count = 0;
-				amount_live_txt = "";
-				convert.str("");
-				event_routine(RoutineCode::CASH_LARGE_OUT);
-				scr_state = 7;
+				event_routine(RoutineCode::CASH_LARGE_OUT, [this]() -> void {
+					user->balance = user->balance - amount;
+					oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_out(oss.str());
+					amount = 0; amount_count = 0;
+					amount_live_txt = "";
+					convert.str("");
+					scr_state = 7;
+				});
 				break;
 			case 7: //- (7) Receipt? (Withdraw)
 				switch (clickableObjectCode)
@@ -1035,6 +1091,7 @@ private:
 				{
 					case 1: //- Yes (L1)
 						event_routine(RoutineCode::MENU_SOUND);
+						cash_small_visible = true;
 						scr_state = 13;
 						break;
 					case 7: //- No (R3)
@@ -1047,12 +1104,12 @@ private:
 				}
 				break;
 			case 13: //- Insert Cash
-				cash_small_visible = true;
 				switch (clickableObjectCode)
 				{
 					case 23:
-						event_routine(RoutineCode::CASH_SMALL_IN);
-						scr_state = 24;
+						event_routine(RoutineCode::CASH_SMALL_IN, [this]() -> void {
+							scr_state = 24;
+						});
 						break;
 				}
 				break;
@@ -1075,6 +1132,7 @@ private:
 						}
 						break;
 				}
+				break;
 			case 15: //- Another transaction? (Deposit)
 				switch (clickableObjectCode)
 				{
@@ -1102,12 +1160,13 @@ private:
 				}
 				break;
 			case 17: //- Processing (Account Balance)
-				sf::sleep(card_snd_buf.getDuration());
-				oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_out(oss.str());
-				amount = 0; amount_count = 0;
-				amount_live_txt = "";
-				convert.str("");
-				scr_state = 18;
+				handle_timed_action(processing_time, [this]() -> void {
+					oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_out(oss.str());
+					amount = 0; amount_count = 0;
+					amount_live_txt = "";
+					convert.str("");
+					scr_state = 18;
+				});
 				break;
 			case 18: //- Balance = ***. Receipt?
 				switch (clickableObjectCode)
@@ -1160,7 +1219,6 @@ private:
 				}
 				break;
 			case 22: //- (22) Account suspended
-				blocked = true;
 				if (!accountSuspendedFlag)
 				{
 					oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_out(oss.str());
@@ -1173,27 +1231,29 @@ private:
 				}
 				break;
 			case 23: //- (23) Processing (for card in)
-				sf::sleep(card_snd_buf.getDuration());
-				if (!blocked)
-					scr_state = 2;
-				else
-					scr_state = 22;
+				handle_timed_action(processing_time, [this]() -> void {
+					if (!blocked)
+						scr_state = 2;
+					else
+						scr_state = 22;
+				});
 				break;
 			case 24: //- (24) Processing (deposit)
-				user->balance = user->balance + amount;
-				oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_out(oss.str());
-				sf::sleep(card_snd_buf.getDuration());
-				amount = 0; amount_count = 0;
-				amount_live_txt = "";
-				convert.str("");
-				scr_state = 14;
+				handle_timed_action(processing_time, [this]() -> void {
+					user->balance = user->balance + amount;
+					oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_out(oss.str());
+					amount = 0; amount_count = 0;
+					amount_live_txt = "";
+					convert.str("");
+					scr_state = 14;
+				});
 				break;
 		}
 
 		if (clickableObjectCode == 25) //- Button: Cancel
 		{
 			if (!card_visible) {
-				menu_snd.play();
+				event_routine(RoutineCode::MENU_SOUND);
 				if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 &&
 					scr_state != 23) {
 					oss << get_time_cli() << user->last_name << " "
@@ -1365,7 +1425,7 @@ private:
 		}
 	}
 
-	void event_routine(unsigned short int routine)
+	void event_routine(unsigned short int routine, std::function<void()> callback = {})
 	{
 		//=======================
 		//Routine Codes (routine)
@@ -1380,26 +1440,26 @@ private:
 		//======================
 		//======================
 
+		if (actionTimer != nullptr) return;
+
 		switch (routine)
 		{
 		case RoutineCode::CARD_IN:
 			accountSuspendedFlag = false;
 			card_visible = false;
 			card_snd.play();
-			render(window);
-			sf::sleep(card_snd_buf.getDuration());
-			oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_out(oss.str());
+			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
+				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_out(oss.str());
+				if (callback) callback();
+			});
 			break;
 		case RoutineCode::CARD_OUT:
-			if (scr_state != 1)
-			{
-				card_snd.play();
-				render(window);
-				sf::sleep(card_snd_buf.getDuration());
+			card_snd.play();
+			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
 				oss << get_time_cli() << "The card was ejected"; log_out(oss.str());
-			}
-			sign_out();
-			init_states();
+				if (callback) callback();
+				sign_out();
+			});
 			break;
 		case RoutineCode::KEY_SOUND:
 			key_snd.play();
@@ -1409,22 +1469,24 @@ private:
 			break;
 		case RoutineCode::CASH_LARGE_OUT:
 			cash_snd.play();
-			sf::sleep(cash_snd_buf.getDuration());
-			cash_large_visible = true;
+			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+				cash_large_visible = true;
+				if (callback) callback();
+			});
 			break;
 		case RoutineCode::CASH_SMALL_IN:
-			if (scr_state == 13)
-			{
-				cash_small_visible = false;
-				cash_snd.play();
-				render(window);
-				sf::sleep(cash_snd_buf.getDuration());
-			}
+			cash_snd.play();
+			cash_small_visible = false;
+			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+				if (callback) callback();
+			});
 			break;
 		case RoutineCode::RECEIPT_OUT:
 			print_receipt_snd.play();
-			sf::sleep(print_receipt_snd_buf.getDuration());
-			receipt_visible = true;
+			handle_timed_action(print_receipt_snd_buf.getDuration(), [this, callback]() -> void {
+				receipt_visible = true;
+				if (callback) callback();
+			});
 			break;
 		}
 	}
@@ -1456,6 +1518,7 @@ private:
 		user = nullptr;
 		username_scr_str.str("");
 		iban_scr_str.str("");
+		init_states();
 	}
 
 	void sign_in(User* user)
@@ -1561,6 +1624,17 @@ private:
 	    return "res/" + general_path;
     }
 
+    void handle_timed_action(sf::Time duration, std::function<void()> action)
+	{
+		if (actionTimer == nullptr)
+		{
+			actionTimer = new ActionTimer(duration, [this, action]() -> void {
+				action();
+				actionTimer = nullptr;
+			});
+		}
+	}
+
 public:
 	void run()
 	{
@@ -1568,13 +1642,14 @@ public:
 		while (window.isOpen())
 		{
 			handle_events();
+			handle_action_timer();
 			if (windowHasFocus)
 			{
 				update();
 				render(window);
 			}
 			else
-				sf::sleep(sf::milliseconds(100));
+				sf::sleep(sf::milliseconds(16));
 		}
 		terminate();
 	}
