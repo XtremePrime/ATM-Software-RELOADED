@@ -272,10 +272,10 @@ private:
 
 		//- Initialize CLI
 		system("color 0A");
-		oss << "================================================================================"; log_out(oss.str());
-		oss << "==================================ATM Software=================================="; log_out(oss.str());
-		oss << "================================================================================"; log_out(oss.str());
-		oss << get_time_cli() << "ATM is now powered on"; log_out(oss.str());
+		oss << "================================================================================"; log_msg(oss.str());
+		oss << "==================================ATM Software=================================="; log_msg(oss.str());
+		oss << "================================================================================"; log_msg(oss.str());
+		oss << get_time_cli() << "ATM is now powered on"; log_msg(oss.str());
 
 		//- Load database
 		database.open(res("database/database.txt"));
@@ -287,23 +287,23 @@ private:
 		// https://stackoverflow.com/questions/13317387/how-to-get-file-in-assets-from-android-ndk/13317651#13317651
 		if (!database.fail())
 		{
-			oss << get_time_cli() << "User database loaded"; log_out(oss.str());
+			oss << get_time_cli() << "User database loaded"; log_msg(oss.str());
 			load_clients();
 		}
 		else
 		{
-			oss << get_time_cli() << "User database not found"; log_out(oss.str());
+			oss << get_time_cli() << "User database not found"; log_msg(oss.str());
 			load_placeholder_client();
 		}
 
 		//- Load fonts
 		if (font.loadFromFile(res("courier_new.ttf")))
 		{
-			oss << get_time_cli() << "Font loaded"; log_out(oss.str());
+			oss << get_time_cli() << "Font loaded"; log_msg(oss.str());
 		}
 		else
 		{
-			oss << get_time_cli() << "Font not found"; log_out(oss.str());
+			oss << get_time_cli() << "Font not found"; log_msg(oss.str());
 			window.close();
 		}
 
@@ -314,12 +314,12 @@ private:
 			!cash_small_texture.loadFromFile(res("cash_small_texture.jpg")) ||
 			!receipt_texture.loadFromFile(res("receipt_texture.jpg")))
 		{
-			oss << get_time_cli() << "One or more textures not found"; log_out(oss.str());
+			oss << get_time_cli() << "One or more textures not found"; log_msg(oss.str());
 			window.close();
 		}
 		else
 		{
-			oss << get_time_cli() << "Textures loaded"; log_out(oss.str());
+			oss << get_time_cli() << "Textures loaded"; log_msg(oss.str());
 		}
 
 		//- Load sounds in the sound buffer
@@ -338,17 +338,17 @@ private:
 		{
 			if (!sound_ptr[i]->loadFromFile(sound_arr[i]))
 			{
-				oss << get_time_cli() << "\"" << sound_arr[i] << "\" not found"; log_out(oss.str());
+				oss << get_time_cli() << "\"" << sound_arr[i] << "\" not found"; log_msg(oss.str());
 				window.close();
 				sound_ok = false;
 				break;
 			}
 		}
 		if(sound_ok)
-			oss << get_time_cli() << "Sounds loaded"; log_out(oss.str());
+			oss << get_time_cli() << "Sounds loaded"; log_msg(oss.str());
 
 		//- Ready to go
-		oss << get_time_cli() << "ATM is ready to use"; log_out(oss.str());
+		oss << get_time_cli() << "ATM is ready to use"; log_msg(oss.str());
 
 		//- Assign font to text
 		scr_clock.setFont(font);
@@ -746,9 +746,9 @@ private:
 							if (user_lookup_result != nullptr)
 							{
 								sign_in(user_lookup_result);
-								oss << get_time_cli() << "Cardholder successfully authenticated:"; log_out(oss.str());
-								oss << "\t\t\t  Full Name: " << user->last_name << " " << user->first_name; log_out(oss.str());
-								oss << "\t\t\t  IBAN: " << user->iban; log_out(oss.str());
+								oss << get_time_cli() << "Cardholder successfully authenticated:"; log_msg(oss.str());
+								oss << "\t\t\t  Full Name: " << user->last_name << " " << user->first_name; log_msg(oss.str());
+								oss << "\t\t\t  IBAN: " << user->iban; log_msg(oss.str());
 								scr_state = 3;
 							}
 							else
@@ -756,13 +756,13 @@ private:
 								pin_retry++;
 								if (pin_retry == 3)
 								{
-									oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_out(oss.str());
+									oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_msg(oss.str());
 									scr_state = 22;
 									blocked = true;
 								}
 								else
 								{
-									oss << get_time_cli() << "Cardholder entered a wrong PIN"; log_out(oss.str());
+									oss << get_time_cli() << "Cardholder entered a wrong PIN"; log_msg(oss.str());
 									scr_state = 21;
 								}
 							}
@@ -921,7 +921,7 @@ private:
 			case 6: //- (6) Processing (Withdraw)
 				event_routine(RoutineCode::CASH_LARGE_OUT, [this]() -> void {
 					user->balance = user->balance - amount;
-					oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_out(oss.str());
+					oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_msg(oss.str());
 					amount = 0; amount_count = 0;
 					amount_live_txt = "";
 					convert.str("");
@@ -967,7 +967,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1150,7 +1150,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1162,7 +1162,7 @@ private:
 				break;
 			case 17: //- Processing (Account Balance)
 				handle_timed_action(processing_time, [this]() -> void {
-					oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_out(oss.str());
+					oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_msg(oss.str());
 					amount = 0; amount_count = 0;
 					amount_live_txt = "";
 					convert.str("");
@@ -1202,7 +1202,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1222,7 +1222,7 @@ private:
 			case 22: //- (22) Account suspended
 				if (!accountSuspendedFlag)
 				{
-					oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_out(oss.str());
+					oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_msg(oss.str());
 					accountSuspendedFlag = true;
 				}
 				if (clickableObjectCode == 20)
@@ -1242,7 +1242,7 @@ private:
 			case 24: //- (24) Processing (deposit)
 				handle_timed_action(processing_time, [this]() -> void {
 					user->balance = user->balance + amount;
-					oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_out(oss.str());
+					oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_msg(oss.str());
 					amount = 0; amount_count = 0;
 					amount_live_txt = "";
 					convert.str("");
@@ -1259,7 +1259,7 @@ private:
 					scr_state != 23) {
 					oss << get_time_cli() << user->last_name << " "
 						<< user->first_name << " canceled the session";
-					log_out(oss.str());
+					log_msg(oss.str());
 				}
 				event_routine(RoutineCode::CARD_OUT);
 			}
@@ -1450,14 +1450,14 @@ private:
 			card_visible = false;
 			card_snd.play();
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
-				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_out(oss.str());
+				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_msg(oss.str());
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::CARD_OUT:
 			card_snd.play();
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
-				oss << get_time_cli() << "The card was ejected"; log_out(oss.str());
+				oss << get_time_cli() << "The card was ejected"; log_msg(oss.str());
 				if (callback) callback();
 				sign_out();
 			});
@@ -1578,7 +1578,7 @@ private:
         return serializeTimePoint(current_time, "logs/log-%Y.%m.%d-%H.%M.%S");
     }
 
-	void log_out(std::string str)
+	void log_msg(std::string str)
 	{
 		std::cout << str << std::endl;
 		log << str << std::endl;
@@ -1588,7 +1588,7 @@ private:
 
 	void terminate()
 	{
-		oss << get_time_cli() << "The ATM is now powered off"; log_out(oss.str());
+		oss << get_time_cli() << "The ATM is now powered off"; log_msg(oss.str());
 		if (database.is_open())
 			database.close();
 		if (log.is_open())
