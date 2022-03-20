@@ -23,7 +23,7 @@
 
 #ifdef TARGET_WIN
  #define NOMINMAX
- #include <windows.h>
+// #include <windows.h>
 #endif //_WIN32
 
 #ifdef TARGET_ANDROID
@@ -1455,38 +1455,36 @@ private:
 		return stream.str();
 	}
 
+    std::string serializeTimePoint(const std::chrono::system_clock::time_point& time, const std::string& format)
+    {
+        std::time_t tt = std::chrono::system_clock::to_time_t(time);
+//		std::tm tm = *std::gmtime(&tt); //GMT (UTC)
+        std::tm tm = *std::localtime(&tt); //Locale time-zone
+        std::stringstream ss;
+        ss << std::put_time( &tm, format.c_str() );
+        return ss.str();
+    }
+
 	std::string get_time_cli()
 	{
-		char str[0x7F];
-#ifdef TARGET_WIN
-		SYSTEMTIME systime;
-		GetLocalTime(&systime);
-		sprintf_s(str, "%02d-%02d-%04d | %02d:%02d:%02d --> ", systime.wDay, systime.wMonth, systime.wYear, systime.wHour, systime.wMinute, systime.wSecond);
-#endif
-		return str;
+        std::chrono::time_point<std::chrono::system_clock> current_time =
+                std::chrono::system_clock::now();
+        return serializeTimePoint(current_time, "%Y-%m-%d | %H:%M:%S --> ");
 	}
 
 	std::string get_time_gui()
 	{
-		char str[0x7F];
-#ifdef TARGET_WIN
-		SYSTEMTIME systime;
-		GetLocalTime(&systime);
-		sprintf_s(str, "%02d:%02d:%02d", systime.wHour, systime.wMinute, systime.wSecond);
-#endif
-		return str;
+		std::chrono::time_point<std::chrono::system_clock> current_time =
+		        std::chrono::system_clock::now();
+		return serializeTimePoint(current_time, "%H:%M:%S");
 	}
 
 	std::string get_name_log()
 	{
-		char str[0x7F];
-#ifdef TARGET_WIN
-		SYSTEMTIME systime;
-		GetLocalTime(&systime);
-		sprintf_s(str, res("logs/log-%04d.%02d.%02d-%02d.%02d.%02d.txt"), systime.wYear, systime.wMonth, systime.wDay, systime.wHour, systime.wMinute, systime.wSecond);
-#endif
-		return str;
-	}
+        std::chrono::time_point<std::chrono::system_clock> current_time =
+                std::chrono::system_clock::now();
+        return serializeTimePoint(current_time, "logs/log-%Y.%m.%d-%H.%M.%S");
+    }
 
 	void log_out(std::string str)
 	{
