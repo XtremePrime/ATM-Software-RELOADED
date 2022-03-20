@@ -114,8 +114,9 @@ private:
 	sf::RectangleShape pin_border_shape;
 	sf::RectangleShape amount_border_shape;
 
-	//- Database
-	std::vector<User> client;
+	//- Users
+	std::vector<User> users;
+	User* user;
 
 	//- Text files
 	std::ifstream database;
@@ -134,7 +135,7 @@ private:
 	std::string pin_live_txt = "****"; std::string amount_live_txt = "";
 
 	//- Outstanding Click / Touch Event
-	sf::Vector2i* outstanding_interaction_event = nullptr;
+	sf::Vector2i* outstanding_interaction_event;
 
 	//- Cursor
 	const int CURSOR_CIRCLE_RADIUS = 16;
@@ -223,6 +224,9 @@ private:
 	{
 		//- Create new log file
 		log.open(get_name_log().c_str());
+
+		//- Init States
+		init_states();
 
 		//- Initialize Window
 		init_win();
@@ -346,6 +350,7 @@ private:
 		amount_live_txt = "";
 		convert.str("");
 		balance.str("");
+		outstanding_interaction_event = nullptr;
 	}
 
 	void handle_events()
@@ -682,11 +687,13 @@ private:
 							break;
 						case 20://- OK
 							event_routine(RoutineCode::MENU_SOUND);
-							if (pin == client.at(0).pin)
+							User* user_lookup_result = find_user_by_pin(pin);
+							if (user_lookup_result != nullptr)
 							{
+								sign_in(user_lookup_result);
 								oss << get_time_cli() << "Cardholder successfully authenticated:"; log_out(oss.str());
-								oss << "\t\t\t  Full Name: " << client.at(0).last_name << " " << client.at(0).first_name; log_out(oss.str());
-								oss << "\t\t\t  IBAN: " << client.at(0).iban; log_out(oss.str());
+								oss << "\t\t\t  Full Name: " << user->last_name << " " << user->first_name; log_out(oss.str());
+								oss << "\t\t\t  IBAN: " << user->iban; log_out(oss.str());
 								scr_state = 3;
 							}
 							else
@@ -796,7 +803,7 @@ private:
 							{
 								event_routine(RoutineCode::MENU_SOUND);
 								amount_count = 0;
-								if (amount <= client.at(0).balance)
+								if (amount <= user->balance)
 									scr_state = 5;
 								else
 								{
@@ -823,7 +830,7 @@ private:
 						case 20://- OK
 							event_routine(RoutineCode::MENU_SOUND);
 							amount_count = 0;
-							if (amount <= client.at(0).balance)
+							if (amount <= user->balance)
 								scr_state = 5;
 							else
 							{
@@ -856,8 +863,8 @@ private:
 				}
 				break;
 			case 6: //- (6) Processing (Withdraw)
-				client.at(0).balance = client.at(0).balance - amount;
-				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " withdrew " << amount << " RON"; log_out(oss.str());
+				user->balance = user->balance - amount;
+				oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_out(oss.str());
 				amount = 0; amount_count = 0;
 				amount_live_txt = "";
 				convert.str("");
@@ -903,7 +910,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1084,7 +1091,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1096,7 +1103,7 @@ private:
 				break;
 			case 17: //- Processing (Account Balance)
 				sf::sleep(card_snd_buf.getDuration());
-				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << "'s balance is: " << client.at(0).balance << " RON"; log_out(oss.str());
+				oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_out(oss.str());
 				amount = 0; amount_count = 0;
 				amount_live_txt = "";
 				convert.str("");
@@ -1116,7 +1123,7 @@ private:
 						break;
 				}
 				balance.str("");
-				balance << client.at(0).balance << " RON";
+				balance << user->balance << " RON";
 				amount_live_txt = balance.str();
 				break;
 			case 19: //- Another Transaction? (Account Balance)
@@ -1135,7 +1142,7 @@ private:
 							if (!card_visible)
 							{
 								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " finished the session"; log_out(oss.str());
+								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_out(oss.str());
 								event_routine(RoutineCode::CARD_OUT);
 							}
 						}
@@ -1173,8 +1180,8 @@ private:
 					scr_state = 22;
 				break;
 			case 24: //- (24) Processing (deposit)
-				client.at(0).balance = client.at(0).balance + amount;
-				oss << get_time_cli() << client.at(0).last_name << " " << client.at(0).first_name << " deposited " << amount << " RON"; log_out(oss.str());
+				user->balance = user->balance + amount;
+				oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_out(oss.str());
 				sf::sleep(card_snd_buf.getDuration());
 				amount = 0; amount_count = 0;
 				amount_live_txt = "";
@@ -1189,8 +1196,8 @@ private:
 				menu_snd.play();
 				if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 &&
 					scr_state != 23) {
-					oss << get_time_cli() << client.at(0).last_name << " "
-						<< client.at(0).first_name << " canceled the session";
+					oss << get_time_cli() << user->last_name << " "
+						<< user->first_name << " canceled the session";
 					log_out(oss.str());
 				}
 				event_routine(RoutineCode::CARD_OUT);
@@ -1391,6 +1398,7 @@ private:
 				sf::sleep(card_snd_buf.getDuration());
 				oss << get_time_cli() << "The card was ejected"; log_out(oss.str());
 			}
+			sign_out();
 			init_states();
 			break;
 		case RoutineCode::KEY_SOUND:
@@ -1429,23 +1437,43 @@ private:
 		for (i = 0; i < nr; i++)
 		{
 			database >> u.iban >> u.last_name >> u.first_name >> u.pin >> u.balance;
-			client.push_back(u);
+			users.push_back(u);
 		}
-		username_scr_str << client.at(0).last_name << " " << client.at(0).first_name;
-		iban_scr_str << client.at(0).iban;
+	}
+
+	User* find_user_by_pin(unsigned short pin)
+	{
+		for (int i = 0; i < users.size(); i++)
+		{
+			if (users[i].pin == pin)
+				return &users[i];
+		}
+		return nullptr;
+	}
+
+	void sign_out()
+	{
+		user = nullptr;
+		username_scr_str.str("");
+		iban_scr_str.str("");
+	}
+
+	void sign_in(User* user)
+	{
+		this->user = user;
+		username_scr_str << user->last_name << " " << user->first_name;
+		iban_scr_str << user->iban;
 	}
 
 	void load_placeholder_client()
 	{
 		User u;
-		u.iban = "RO-13-ABBK-0895-9965-0449-91";
-		u.last_name = "Salagean";
-		u.first_name = "Radu";
-		u.pin = 1234;
-		u.balance = 950;
-		client.push_back(u);
-		username_scr_str << u.last_name << " " << u.first_name;
-		iban_scr_str << u.iban;
+		u.iban = "RO-13-ABBK-0345-2342-0255-92";
+		u.last_name = "Placeholder";
+		u.first_name = "Client";
+		u.pin = 0;
+		u.balance = 100;
+		users.push_back(u);
 	}
 
 	std::string program_title()
