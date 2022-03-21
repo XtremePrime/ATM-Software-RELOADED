@@ -21,15 +21,6 @@
 #define TARGET_LINUX
 #endif
 
-#ifdef TARGET_WIN
- #define NOMINMAX
-// #include <windows.h>
-#endif //_WIN32
-
-#ifdef TARGET_ANDROID
-#define SHOW_CURSOR
-#endif
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -43,6 +34,121 @@
 #include <SFML/Audio.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
+
+#ifdef TARGET_WIN
+ #define NOMINMAX
+// #include <windows.h>
+#endif //_WIN32
+
+#ifdef TARGET_ANDROID
+#include <android/asset_manager.h>
+#include <android/log.h>
+#include <jni.h>
+#include <android/native_activity.h>
+#include <SFML/System/NativeActivity.hpp>
+#endif
+
+#ifdef TARGET_ANDROID
+
+#define SHOW_CURSOR
+
+class AndroidGlue
+{
+private:
+	// General
+	ANativeActivity* native_activity_handle;
+	JavaVM* vm;
+	JNIEnv* env;
+
+	// Vibrate
+	jobject vibrate_object;
+	jmethodID vibrate_method;
+
+	void init()
+	{
+		// First we'll need the native activity handle
+		native_activity_handle = sf::getNativeActivity();
+
+		// Retrieve the AssetManager so we can read resources from the APK
+		asset_manager = native_activity_handle->assetManager;
+
+		// Retrieve the JVM and JNI environment
+		vm = native_activity_handle->vm;
+		env = native_activity_handle->env;
+
+		// Attach this thread to the main thread
+		attach_to_main_thread();
+
+		// Retrieve class information
+		jclass native_activity = env->FindClass("android/app/NativeActivity");
+		jclass context = env->FindClass("android/content/Context");
+
+		init_vibration(context, native_activity);
+
+		// Free references
+		env->DeleteLocalRef(context);
+		env->DeleteLocalRef(native_activity);
+	}
+
+	bool attach_to_main_thread()
+	{
+		JavaVMAttachArgs attachargs;
+		attachargs.version = JNI_VERSION_1_6;
+		attachargs.name = "NativeThread";
+		attachargs.group = nullptr;
+		jint res = vm->AttachCurrentThread(&env, &attachargs);
+
+		if (res == JNI_ERR)
+			return false;
+		return true;
+	}
+
+	void init_vibration(jclass context, jclass native_activity)
+	{
+		// Get the value of a constant
+		jfieldID vibrator_service_field_id = env->GetStaticFieldID(context, "VIBRATOR_SERVICE", "Ljava/lang/String;");
+		jobject vibrator_service_object = env->GetStaticObjectField(context, vibrator_service_field_id);
+
+		// Get the method 'getSystemService' and call it
+		jmethodID get_system_service_method_id = env->GetMethodID(native_activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+		vibrate_object = env->CallObjectMethod(native_activity_handle->clazz, get_system_service_method_id, vibrator_service_object);
+
+		// Get the object's class and retrieve the member name
+		jclass vibrate_class = env->GetObjectClass(vibrate_object);
+		vibrate_method = env->GetMethodID(vibrate_class, "vibrate", "(J)V");
+
+		// Free references
+		env->DeleteLocalRef(vibrate_class);
+		env->DeleteLocalRef(vibrator_service_object);
+	}
+
+public:
+	// Asset Manager
+	AAssetManager* asset_manager;
+
+	AndroidGlue()
+	{
+		init();
+	}
+
+	void vibrate(int duration_millis)
+	{
+		jlong duration_millis_jlong = duration_millis;
+		// Bzzz!
+		env->CallVoidMethod(vibrate_object, vibrate_method, duration_millis_jlong);
+	}
+
+	void release()
+	{
+		// Free references
+		env->DeleteLocalRef(vibrate_object);
+
+		// Detach thread again
+		vm->DetachCurrentThread();
+	}
+};
+
+#endif
 
 class ActionTimer
 {
@@ -155,7 +261,8 @@ private:
 	User* user;
 
 	//- Text files
-	std::ifstream database;
+	const std::string database_path = "database/database.txt";
+	std::stringstream database;
 	std::ofstream log;
 
 	//- Out String Stream
@@ -180,7 +287,7 @@ private:
     //- Action Timer
     ActionTimer* actionTimer;
 
-	//- Standard use enums
+	//- Routine Action Codes
 	enum RoutineCode {
 		CARD_IN = 1,
 		CARD_OUT = 2,
@@ -190,6 +297,16 @@ private:
 		CASH_SMALL_IN = 6,
 		RECEIPT_OUT = 7
 	};
+
+	//- Vibration Length
+	enum VibrationDuration {
+		SHORT = 20,
+		MEDIUM = 40
+	};
+
+#ifdef TARGET_ANDROID
+	AndroidGlue android_glue;
+#endif
 
 	void init_win()
 	{
@@ -259,6 +376,56 @@ private:
 #endif
 	}
 
+	void load_database()
+    {
+#ifdef TARGET_ANDROID
+        // In order to properly read asset files in android, we use the Asset NDK Module
+        // Links:
+        // https://developer.android.com/ndk/reference/group/asset
+        // https://stackoverflow.com/a/33957074
+		if (android_glue.asset_manager != nullptr)
+		{
+			// Open your file
+			std::string file_path = res(database_path);
+			AAsset* file = AAssetManager_open(android_glue.asset_manager, file_path.c_str(), AASSET_MODE_BUFFER);
+			// Get the file length
+			size_t fileLength = AAsset_getLength(file);
+
+			// Allocate memory to read your file
+			char* fileContent = new char[fileLength + 1];
+
+			// Read your file
+			AAsset_read(file, fileContent, fileLength);
+			// For safety you can add a 0 terminating character at the end of your file ...
+			fileContent[fileLength] = '\0';
+
+			// Do whatever you want with the content of the file
+			database << fileContent;
+
+			// Free the memory you allocated earlier
+			delete [] fileContent;
+		}
+#else
+        std::ifstream file_stream(res(database_path));
+        if (file_stream.is_open())
+        {
+            database << file_stream.rdbuf();
+            file_stream.close();
+        }
+#endif
+
+        if (database.tellp() > std::streampos(0))
+        {
+            oss << get_time_cli() << "User database loaded"; log_msg(oss.str());
+            load_clients();
+        }
+        else
+        {
+            oss << get_time_cli() << "User database not found"; log_msg(oss.str());
+            load_placeholder_client();
+        }
+    }
+
 	void init()
 	{
 		//- Create new log file
@@ -279,24 +446,8 @@ private:
 		oss << "================================================================================"; log_msg(oss.str());
 		oss << get_time_cli() << "ATM is now powered on"; log_msg(oss.str());
 
-		//- Load database
-		database.open(res("database/database.txt"));
-		// Note: This will fail on Android, std::ifstream cannot read from the apk file,
-		//  which stores the text file.
-		// In order to properly read asset files in android, use the Asset NDK Module
-		// Links:
-		// https://developer.android.com/ndk/reference/group/asset
-		// https://stackoverflow.com/questions/13317387/how-to-get-file-in-assets-from-android-ndk/13317651#13317651
-		if (!database.fail())
-		{
-			oss << get_time_cli() << "User database loaded"; log_msg(oss.str());
-			load_clients();
-		}
-		else
-		{
-			oss << get_time_cli() << "User database not found"; log_msg(oss.str());
-			load_placeholder_client();
-		}
+        //- Load database
+		load_database();
 
 		//- Load fonts
 		if (font.loadFromFile(res("courier_new.ttf")))
@@ -949,6 +1100,7 @@ private:
 						}
 						break;
 					case 22: //- Cash Large
+						vibrate(VibrationDuration::SHORT);
 						cash_large_visible = false;
 						break;
 				}
@@ -975,6 +1127,7 @@ private:
 						}
 						break;
 					case 24: //- Receipt
+						vibrate(VibrationDuration::SHORT);
 						receipt_visible = false;
 						break;
 				}
@@ -1158,6 +1311,7 @@ private:
 						}
 						break;
 					case 24: //- Receipt
+						vibrate(VibrationDuration::SHORT);
 						receipt_visible = false;
 						break;
 				}
@@ -1210,6 +1364,7 @@ private:
 						}
 						break;
 					case 24: //- Receipt
+						vibrate(VibrationDuration::SHORT);
 						receipt_visible = false;
 						break;
 				}
@@ -1268,6 +1423,7 @@ private:
 		}
 		if (clickableObjectCode == 26) //- Button: Exit
 		{
+			vibrate(VibrationDuration::SHORT);
 			click_snd.play();
 			window.close();
 		}
@@ -1451,43 +1607,55 @@ private:
 			accountSuspendedFlag = false;
 			card_visible = false;
 			card_snd.play();
+			vibrate(VibrationDuration::MEDIUM);
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
 				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_msg(oss.str());
+				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::CARD_OUT:
 			card_snd.play();
+			vibrate(VibrationDuration::MEDIUM);
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
 				oss << get_time_cli() << "The card was ejected"; log_msg(oss.str());
+				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 				sign_out();
 			});
 			break;
 		case RoutineCode::KEY_SOUND:
 			key_snd.play();
+			vibrate(VibrationDuration::SHORT);
 			break;
 		case RoutineCode::MENU_SOUND:
 			menu_snd.play();
+			vibrate(VibrationDuration::SHORT);
 			break;
 		case RoutineCode::CASH_LARGE_OUT:
 			cash_snd.play();
+			vibrate(VibrationDuration::MEDIUM);
 			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
 				cash_large_visible = true;
+				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::CASH_SMALL_IN:
 			cash_snd.play();
+			vibrate(VibrationDuration::MEDIUM);
 			cash_small_visible = false;
 			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::RECEIPT_OUT:
+			vibrate(VibrationDuration::MEDIUM);
 			print_receipt_snd.play();
 			handle_timed_action(print_receipt_snd_buf.getDuration(), [this, callback]() -> void {
 				receipt_visible = true;
+				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
@@ -1591,8 +1759,6 @@ private:
 	void terminate()
 	{
 		oss << get_time_cli() << "The ATM is now powered off"; log_msg(oss.str());
-		if (database.is_open())
-			database.close();
 		if (log.is_open())
 			log.close();
 		system("pause");
@@ -1636,6 +1802,13 @@ private:
 				actionTimer = nullptr;
 			});
 		}
+	}
+
+	void vibrate(VibrationDuration vibration_duration)
+	{
+#ifdef TARGET_ANDROID
+		android_glue.vibrate(vibration_duration);
+#endif
 	}
 
 public:
