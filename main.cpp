@@ -150,6 +150,94 @@ public:
 
 #endif
 
+class Animation
+{
+protected:
+	sf::Time duration;
+	sf::Clock running_time_clock;
+
+	Animation(sf::Time duration)
+	{
+		this->duration = duration;
+	}
+
+public:
+	virtual ~Animation() = default;
+	virtual void update(sf::Time delta_time) = 0;
+};
+
+class OffsetAnimation : public Animation
+{
+private:
+	sf::Sprite* sprite;
+
+protected:
+	sf::Vector2f target_offset;
+
+	OffsetAnimation(sf::Time duration, sf::Sprite* sprite) : Animation(duration)
+	{
+		this->sprite = sprite;
+	}
+
+public:
+	OffsetAnimation(sf::Time duration, sf::Sprite* sprite,
+					sf::Vector2f start_position, sf::Vector2f target_offset) :
+					OffsetAnimation(duration, sprite)
+	{
+		setStartPosition(start_position);
+		this->target_offset = target_offset;
+	}
+
+	virtual ~OffsetAnimation() = default;
+
+	void update(sf::Time delta_time)
+	{
+		if (running_time_clock.getElapsedTime() <= duration)
+		{
+			float offset_x = (delta_time * target_offset.x) / duration;
+			float offset_y = (delta_time * target_offset.y) / duration;
+			sprite->move(offset_x, offset_y);
+		}
+	}
+
+	void setStartPosition(sf::Vector2f start_position)
+	{
+		sprite->setPosition(start_position);
+	}
+};
+
+enum VerticalOffsetAnimationType
+{
+	TOP_TO_ORIGIN,
+	ORIGIN_TO_TOP
+};
+
+class VerticalOffsetAnimation : public OffsetAnimation
+{
+public:
+	VerticalOffsetAnimation(
+			sf::Time duration,
+			sf::Sprite* sprite,
+			sf::Vector2f origin_position,
+			VerticalOffsetAnimationType type
+	) : OffsetAnimation(duration, sprite)
+	{
+		switch (type) {
+			case VerticalOffsetAnimationType::TOP_TO_ORIGIN:
+				setStartPosition(sf::Vector2f(
+						origin_position.x, origin_position.y - sprite->getLocalBounds().height));
+				this->target_offset = sf::Vector2f(0, sprite->getLocalBounds().height);
+				break;
+			case VerticalOffsetAnimationType::ORIGIN_TO_TOP:
+				setStartPosition(origin_position);
+				this->target_offset = sf::Vector2f(0, -sprite->getLocalBounds().height);
+				break;
+		}
+	}
+
+	~VerticalOffsetAnimation() = default;
+};
+
 class ActionTimer
 {
 private:
@@ -226,10 +314,10 @@ private:
 
 	//- Textures and Sprites
 	sf::Texture backgnd_texture;           sf::Sprite backgnd_sprite;
-	sf::Texture card_texture;              sf::Sprite card_sprite;
-	sf::Texture cash_large_texture;        sf::Sprite cash_large_sprite;
-	sf::Texture cash_small_texture;        sf::Sprite cash_small_sprite;
-	sf::Texture receipt_texture;           sf::Sprite receipt_sprite;
+	sf::Texture card_texture;              sf::Sprite card_sprite;			sf::Vector2f card_sprite_position = sf::Vector2f(740, 200);
+	sf::Texture cash_large_texture;        sf::Sprite cash_large_sprite;	sf::Vector2f cash_large_sprite_position = sf::Vector2f(90, 370);
+	sf::Texture cash_small_texture;        sf::Sprite cash_small_sprite;	sf::Vector2f cash_small_sprite_position = sf::Vector2f(695, 463);
+	sf::Texture receipt_texture;           sf::Sprite receipt_sprite;		sf::Vector2f receipt_sprite_position = sf::Vector2f(740, 54);
 
 	//- Sound Buffers and Sounds
 	sf::SoundBuffer card_snd_buf;          sf::Sound card_snd;
@@ -286,6 +374,13 @@ private:
 
     //- Action Timer
     ActionTimer* actionTimer;
+
+    //- Animations
+    Animation* running_animation = nullptr;
+    sf::Time card_animation_time = sf::milliseconds(1002);
+
+    //- Frame Delta Clock
+    sf::Clock frame_delta_clock;
 
 	//- Routine Action Codes
 	enum RoutineCode {
@@ -515,10 +610,12 @@ private:
 
 		//- Assign texture to sprite
 		backgnd_sprite.setTexture(backgnd_texture);
-		card_sprite.setTexture(card_texture);             card_sprite.setPosition(740, 200);
-		cash_large_sprite.setTexture(cash_large_texture); cash_large_sprite.setPosition(90, 370);
-		cash_small_sprite.setTexture(cash_small_texture); cash_small_sprite.setPosition(695, 463);
-		receipt_sprite.setTexture(receipt_texture);       receipt_sprite.setPosition(740, 54);
+
+
+		card_sprite.setTexture(card_texture);             card_sprite.setPosition(card_sprite_position);
+		cash_large_sprite.setTexture(cash_large_texture); cash_large_sprite.setPosition(cash_large_sprite_position);
+		cash_small_sprite.setTexture(cash_small_texture); cash_small_sprite.setPosition(cash_small_sprite_position);
+		receipt_sprite.setTexture(receipt_texture);       receipt_sprite.setPosition(receipt_sprite_position);
 
 		//- Assign buffer to sounds
 		card_snd.setBuffer(card_snd_buf);
@@ -779,7 +876,7 @@ private:
 		return 0;
 	}
 
-	void update()
+	void update(sf::Time delta_time)
 	{
 		//======================================================================================================================================================================================================================
 		//Screen States (scr_state)
@@ -1427,6 +1524,12 @@ private:
 			click_snd.play();
 			window.close();
 		}
+
+		// Update animations
+		if (running_animation != nullptr)
+		{
+			running_animation->update(delta_time);
+		}
 	}
 
 	void render(sf::RenderWindow& window)
@@ -1584,6 +1687,21 @@ private:
 		}
 	}
 
+	void addRunningAnimation(Animation* animation)
+	{
+		releaseRunningAnimation();
+		this->running_animation = animation;
+	}
+
+	void releaseRunningAnimation()
+	{
+		if (running_animation != nullptr)
+		{
+			delete running_animation;
+			running_animation = nullptr;
+		}
+	}
+
 	void event_routine(unsigned short int routine, std::function<void()> callback = {})
 	{
 		//=======================
@@ -1605,11 +1723,16 @@ private:
 		{
 		case RoutineCode::CARD_IN:
 			accountSuspendedFlag = false;
-			card_visible = false;
 			card_snd.play();
 			vibrate(VibrationDuration::MEDIUM);
+			addRunningAnimation(new VerticalOffsetAnimation(
+					card_animation_time, &card_sprite,
+					card_sprite_position, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
 				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_msg(oss.str());
+				releaseRunningAnimation();
+				card_visible = false;
+				card_sprite.setPosition(card_sprite_position);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
@@ -1617,8 +1740,14 @@ private:
 		case RoutineCode::CARD_OUT:
 			card_snd.play();
 			vibrate(VibrationDuration::MEDIUM);
+			card_visible = true;
+			addRunningAnimation(new VerticalOffsetAnimation(
+					card_animation_time, &card_sprite,
+					card_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
 			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
 				oss << get_time_cli() << "The card was ejected"; log_msg(oss.str());
+				releaseRunningAnimation();
+				card_sprite.setPosition(card_sprite_position);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 				sign_out();
@@ -1761,6 +1890,9 @@ private:
 		oss << get_time_cli() << "The ATM is now powered off"; log_msg(oss.str());
 		if (log.is_open())
 			log.close();
+#ifdef TARGET_ANDROID
+		android_glue.release();
+#endif
 		system("pause");
 	}
 
@@ -1817,11 +1949,12 @@ public:
 		init();
 		while (window.isOpen())
 		{
+			sf::Time delta_time = frame_delta_clock.restart();
 			handle_events();
 			handle_action_timer();
 			if (windowHasFocus)
 			{
-				update();
+				update(delta_time);
 				render(window);
 			}
 			else
