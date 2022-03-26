@@ -25,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <list>
 #include <string>
 #include <algorithm>
 #include <ctime>
@@ -150,41 +151,137 @@ public:
 
 #endif
 
-class Animation
+struct Animation
 {
+	virtual void update(sf::Time deltaTime) = 0;
+	virtual bool isEnded() = 0;
+	virtual ~Animation() = default;
+};
+
+template <class T>
+class GenericAnimation : public Animation
+{
+private:
+	bool ended = false;
+
 protected:
 	sf::Time duration;
 	sf::Clock runningTimeClock;
+	std::function<void(T animatedProperty)> onUpdateCallback;
+	std::function<void()> onAnimationEndCallback;
 
-	Animation(sf::Time duration)
+	GenericAnimation(sf::Time duration,
+					 std::function<void(T)> onUpdateCallback,
+					 std::function<void()> onAnimationEndCallback)
 	{
 		this->duration = duration;
+		this->onUpdateCallback = onUpdateCallback;
+		this->onAnimationEndCallback = onAnimationEndCallback;
+	}
+	
+	bool isEnded()
+	{
+		return ended;
+	}
+
+	virtual void onAnimationEnd()
+	{
+		ended = true;
+		if (onAnimationEndCallback) onAnimationEndCallback();
 	}
 
 public:
-	virtual ~Animation() = default;
-	virtual void update(sf::Time deltaTime) = 0;
+	virtual ~GenericAnimation() = default;
 };
 
-class OffsetAnimation : public Animation
+class AlphaAnimation : public GenericAnimation<int>
 {
 private:
-	sf::Sprite* sprite;
+	float targetAlpha;
+	float currentAlpha;
+	float alphaDiff;
 
+	void setAlpha(float alpha)
+	{
+		float sanitizedAlpha;
+		if (alphaDiff > 0.f)
+		{
+			sanitizedAlpha = std::min(targetAlpha, alpha);
+		}
+		else
+		{
+			sanitizedAlpha = std::max(targetAlpha, alpha);
+		}
+		this->currentAlpha = sanitizedAlpha;
+		onUpdateCallback(sanitizedAlpha);
+	}
+
+	int getSanitizedColorComponent(int component) {
+		return std::max(0, std::min(255, component));
+	}
+
+public:
+	AlphaAnimation(sf::Time duration, int startAlpha, int targetAlpha,
+				   std::function<void(int)> onUpdateCallback,
+				   std::function<void()> onAnimationEndCallback = {}) :
+				   GenericAnimation(duration, onUpdateCallback, onAnimationEndCallback)
+	{
+		int startAlphaSafe = getSanitizedColorComponent(startAlpha);
+		int targetAlphaSafe = getSanitizedColorComponent(targetAlpha);
+		this->alphaDiff = targetAlphaSafe - startAlphaSafe;
+		this->targetAlpha = targetAlphaSafe;
+		setAlpha(startAlphaSafe);
+	}
+
+	~AlphaAnimation() = default;
+
+	void update(sf::Time deltaTime)
+	{
+		if (isEnded()) return;
+		if (runningTimeClock.getElapsedTime() <= duration)
+		{
+			float currentAlphaDiff = (deltaTime * (float) alphaDiff) / duration;
+			float newAlpha = currentAlpha + currentAlphaDiff;
+			setAlpha(newAlpha);
+		} else {
+			onAnimationEnd();
+		}
+	}
+};
+
+enum class OffsetAnimationUpdateType
+{
+	SET_POSITION,
+	MOVE
+};
+
+struct OffsetAnimationUpdate
+{
+	OffsetAnimationUpdateType type;
+	sf::Vector2f value;
+};
+
+class OffsetAnimation : public GenericAnimation<OffsetAnimationUpdate>
+{
 protected:
 	sf::Vector2f targetOffset;
 
-	OffsetAnimation(sf::Time duration, sf::Sprite* sprite) : Animation(duration)
-	{
-		this->sprite = sprite;
-	}
-
 public:
-	OffsetAnimation(sf::Time duration, sf::Sprite* sprite,
-					sf::Vector2f startPosition, sf::Vector2f targetOffset) :
-					OffsetAnimation(duration, sprite)
+	OffsetAnimation(sf::Time duration, 
+					std::function<void(OffsetAnimationUpdate)> onUpdateCallback,
+					std::function<void()> onAnimationEndCallback) :
+					GenericAnimation(duration, onUpdateCallback, onAnimationEndCallback) {}
+
+	OffsetAnimation(sf::Time duration,
+					sf::Vector2f startPosition, 
+					sf::Vector2f targetOffset,
+					std::function<void(OffsetAnimationUpdate)> onUpdateCallback,
+					std::function<void()> onAnimationEndCallback) :
+					GenericAnimation(duration, onUpdateCallback, onAnimationEndCallback)
 	{
-		setStartPosition(startPosition);
+		onUpdateCallback(OffsetAnimationUpdate {
+			OffsetAnimationUpdateType::SET_POSITION, startPosition
+		});
 		this->targetOffset = targetOffset;
 	}
 
@@ -192,17 +289,17 @@ public:
 
 	void update(sf::Time deltaTime)
 	{
+		if (isEnded()) return;
 		if (runningTimeClock.getElapsedTime() <= duration)
 		{
 			float offsetX = (deltaTime * targetOffset.x) / duration;
 			float offsetY = (deltaTime * targetOffset.y) / duration;
-			sprite->move(offsetX, offsetY);
+			onUpdateCallback(OffsetAnimationUpdate {
+				OffsetAnimationUpdateType::MOVE, sf::Vector2f(offsetX, offsetY)
+			});
+		} else {
+			onAnimationEnd();
 		}
-	}
-
-	void setStartPosition(sf::Vector2f startPosition)
-	{
-		sprite->setPosition(startPosition);
 	}
 };
 
@@ -217,20 +314,27 @@ class VerticalOffsetAnimation : public OffsetAnimation
 public:
 	VerticalOffsetAnimation(
 			sf::Time duration,
-			sf::Sprite* sprite,
 			sf::Vector2f originPosition,
-			VerticalOffsetAnimationType type
-	) : OffsetAnimation(duration, sprite)
+			VerticalOffsetAnimationType type,
+			float animatedSubjectHeight,
+			std::function<void(OffsetAnimationUpdate)> onUpdateCallback,
+			std::function<void()> onAnimationEndCallback
+	) : OffsetAnimation(duration, onUpdateCallback, onAnimationEndCallback)
 	{
 		switch (type) {
 			case VerticalOffsetAnimationType::TOP_TO_ORIGIN:
-				setStartPosition(sf::Vector2f(
-						originPosition.x, originPosition.y - sprite->getLocalBounds().height));
-				this->targetOffset = sf::Vector2f(0, sprite->getLocalBounds().height);
+				onUpdateCallback({
+					OffsetAnimationUpdateType::SET_POSITION,
+					sf::Vector2f(originPosition.x, originPosition.y - animatedSubjectHeight)
+				});
+				this->targetOffset = sf::Vector2f(0, animatedSubjectHeight);
 				break;
 			case VerticalOffsetAnimationType::ORIGIN_TO_TOP:
-				setStartPosition(originPosition);
-				this->targetOffset = sf::Vector2f(0, -sprite->getLocalBounds().height);
+				onUpdateCallback({
+					OffsetAnimationUpdateType::SET_POSITION,
+					originPosition
+				});
+				this->targetOffset = sf::Vector2f(0, -animatedSubjectHeight);
 				break;
 		}
 	}
@@ -245,11 +349,6 @@ private:
 	sf::Time targetDuration;
 	std::function<void()> callback;
 
-	void release()
-	{
-		delete this;
-	}
-
 public:
 	ActionTimer(sf::Time targetDuration, std::function<void()> callback)
 	{
@@ -262,9 +361,21 @@ public:
 		sf::Time elapsedTime = clock.getElapsedTime();
 		if (elapsedTime <= targetDuration) return;
 		callback();
-		release();
 	}
 };
+
+void handleOffsetAnimationUpdate(sf::Sprite* sprite, OffsetAnimationUpdate* update)
+{
+	switch (update->type)
+	{
+		case OffsetAnimationUpdateType::SET_POSITION:
+			sprite->setPosition(update->value);
+			break;
+		case OffsetAnimationUpdateType::MOVE:
+			sprite->move(update->value);
+			break;
+	}
+}
 
 class Atm
 {
@@ -302,8 +413,6 @@ private:
 	sf::RenderWindow window;
 	sf::Event event;
 	sf::Font font;
-//	sf::Clock frameClock; // TODO
-//	sf::Clock clock;
 	sf::Time elapsed;
 
 	//- Textures and Sprites
@@ -377,14 +486,18 @@ private:
 	//- Cursor
 	const int CURSOR_CIRCLE_RADIUS = 16;
     sf::CircleShape cursorCircle = sf::CircleShape(CURSOR_CIRCLE_RADIUS);
+    sf::Color cursorCircleIdleColor = sf::Color(255, 0, 0, 0);
 
     //- Action Timer
     ActionTimer* actionTimer;
 
     //- Animations
-    Animation* runningAnimation = nullptr;
+
+	std::list<Animation*> runningAnimations;
+	Animation* cursorAnimation = nullptr;
     // this is different than the card sound time because the end click is not at the end of the sound
     sf::Time cardAnimationTime = sf::milliseconds(1002);
+    sf::Time cursorFadeOutAnimationTime = sf::seconds(1.5);
 
     //- Frame Delta Clock
     sf::Clock frameDeltaClock;
@@ -648,7 +761,7 @@ private:
 		printReceiptSnd.setBuffer(printReceiptSndBuf);
 
 		// Cursor
-		cursorCircle.setFillColor(sf::Color(255, 0, 0, 127));
+		cursorCircle.setFillColor(cursorCircleIdleColor);
 	}
 
 	void initStates()
@@ -719,12 +832,32 @@ private:
 				position->x - CURSOR_CIRCLE_RADIUS / (float) 2,
 				position->y - CURSOR_CIRCLE_RADIUS / (float) 2
 		);
-		if (actionTimer != nullptr) {
+		addCursorAnimation(
+				new AlphaAnimation(
+						cursorFadeOutAnimationTime, 127, 0,
+						[this](int alpha) -> void {
+							int currentColorInt = cursorCircle.getFillColor().toInteger();
+							currentColorInt = currentColorInt >> 8; // get rid of the old alpha
+							currentColorInt = currentColorInt << 8; // retreat
+							int newColor = currentColorInt | alpha;
+							cursorCircle.setFillColor(sf::Color(newColor));
+						},
+						[this]() -> void {
+							cursorCircle.setFillColor(cursorCircleIdleColor);
+							delete cursorAnimation;
+							cursorAnimation = nullptr;
+						}));
+		if (!canAcceptInput()) {
 			delete position;
-			return; // We have an ongoing timed action, so don't process the event
+			return;
 		}
 		if (outstandIngInteractionEvent != nullptr) delete outstandIngInteractionEvent;
 		outstandIngInteractionEvent = position;
+	}
+
+	bool canAcceptInput()
+	{
+		return actionTimer == nullptr && runningAnimations.empty();
 	}
 
 	int getClickableObjectCode(int x, int y)
@@ -1547,10 +1680,23 @@ private:
 			window.close();
 		}
 
-		// Update animations
-		if (runningAnimation != nullptr)
+		//- Update animations
+		// Although we don't have concurrent object (non-cursor) animations yet,
+		//  we have the system to support that
+		for (auto iterator = runningAnimations.cbegin(); iterator != runningAnimations.end(); iterator++)
 		{
-			runningAnimation->update(deltaTime);
+			auto animation = iterator.operator*();
+			animation->update(deltaTime);
+			// Clean up ended animations
+			if (animation->isEnded())
+			{
+				delete animation;
+				runningAnimations.erase(iterator--);
+			}
+		}
+		if (cursorAnimation != nullptr)
+		{
+			cursorAnimation->update(deltaTime);
 		}
 	}
 
@@ -1723,17 +1869,17 @@ private:
 
 	void addRunningAnimation(Animation* animation)
 	{
-		releaseRunningAnimation();
-		this->runningAnimation = animation;
+		runningAnimations.push_back(animation);
 	}
 
-	void releaseRunningAnimation()
+	void addCursorAnimation(Animation* animation)
 	{
-		if (runningAnimation != nullptr)
+		if (cursorAnimation != nullptr)
 		{
-			delete runningAnimation;
-			runningAnimation = nullptr;
+			delete cursorAnimation;
+			cursorAnimation = nullptr;
 		}
+		cursorAnimation = animation;
 	}
 
 	void eventRoutine(unsigned short int routine, std::function<void()> callback = {})
@@ -1751,7 +1897,7 @@ private:
 		//======================
 		//======================
 
-		if (actionTimer != nullptr) return;
+		if (!canAcceptInput()) return;
 
 		switch (routine)
 		{
@@ -1760,32 +1906,40 @@ private:
 			cardSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cardAnimationTime, &cardSprite,
-					cardSpritePosition, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
-			handleTimedAction(cardSndBuf.getDuration(), [this, callback]() -> void {
-				oss << getTimeCli() << "The cardholder inserted a VISA Classic Card"; logMsg(oss.str());
-				releaseRunningAnimation();
-				cardVisible = false;
-				cardSprite.setPosition(cardSpritePosition);
-				vibrate(VibrationDuration::SHORT);
-				if (callback) callback();
-			});
+					cardAnimationTime, cardSpritePosition,
+					VerticalOffsetAnimationType::ORIGIN_TO_TOP,
+					cardSprite.getLocalBounds().height,
+					[this](OffsetAnimationUpdate update) -> void {
+						handleOffsetAnimationUpdate(&cardSprite, &update);
+					},
+					[this, callback]() -> void {
+						oss << getTimeCli() << "The cardholder inserted a VISA Classic Card"; logMsg(oss.str());
+						cardVisible = false;
+						cardSprite.setPosition(cardSpritePosition);
+						vibrate(VibrationDuration::SHORT);
+						if (callback) callback();
+					}
+			));
 			break;
 		case RoutineCode::CARD_OUT:
 			cardSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
 			cardVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cardAnimationTime, &cardSprite,
-					cardSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handleTimedAction(cardSndBuf.getDuration(), [this, callback]() -> void {
-				oss << getTimeCli() << "The card was ejected"; logMsg(oss.str());
-				releaseRunningAnimation();
-				cardSprite.setPosition(cardSpritePosition);
-				vibrate(VibrationDuration::SHORT);
-				if (callback) callback();
-				signOut();
-			});
+					cardAnimationTime, cardSpritePosition,
+					VerticalOffsetAnimationType::TOP_TO_ORIGIN,
+					cardSprite.getLocalBounds().height,
+					[this](OffsetAnimationUpdate update) -> void {
+						handleOffsetAnimationUpdate(&cardSprite, &update);
+					},
+					[this, callback]() -> void {
+						oss << getTimeCli() << "The card was ejected"; logMsg(oss.str());
+						cardSprite.setPosition(cardSpritePosition);
+						vibrate(VibrationDuration::SHORT);
+						if (callback) callback();
+						signOut();
+					}
+			));
 			break;
 		case RoutineCode::KEY_SOUND:
 			keySnd.play();
@@ -1800,40 +1954,52 @@ private:
 			vibrate(VibrationDuration::MEDIUM);
 			cashLargeVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cashSndBuf.getDuration(), &cashLargeSprite,
-					cashLargeSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handleTimedAction(cashSndBuf.getDuration(), [this, callback]() -> void {
-				releaseRunningAnimation();
-				vibrate(VibrationDuration::SHORT);
-				if (callback) callback();
-			});
+					cashSndBuf.getDuration(), cashLargeSpritePosition,
+					VerticalOffsetAnimationType::TOP_TO_ORIGIN,
+					cashLargeSprite.getLocalBounds().height,
+					[this](OffsetAnimationUpdate update) -> void {
+						handleOffsetAnimationUpdate(&cashLargeSprite, &update);
+					},
+					[this, callback]() -> void {
+						vibrate(VibrationDuration::SHORT);
+						if (callback) callback();
+					}
+			));
 			break;
 		case RoutineCode::CASH_SMALL_IN:
 			cashSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cashSndBuf.getDuration(), &cashSmallSprite,
-					cashSmallSpritePosition, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
-			handleTimedAction(cashSndBuf.getDuration(), [this, callback]() -> void {
-				releaseRunningAnimation();
-				cashSmallVisible = false;
-				cashSmallSprite.setPosition(cashSmallSpritePosition);
-				vibrate(VibrationDuration::SHORT);
-				if (callback) callback();
-			});
+					cashSndBuf.getDuration(), cashSmallSpritePosition,
+					VerticalOffsetAnimationType::ORIGIN_TO_TOP,
+					cashSmallSprite.getLocalBounds().height,
+					[this](OffsetAnimationUpdate update) -> void {
+						handleOffsetAnimationUpdate(&cashSmallSprite, &update);
+					},
+					[this, callback]() -> void {
+						cashSmallVisible = false;
+						cashSmallSprite.setPosition(cashSmallSpritePosition);
+						vibrate(VibrationDuration::SHORT);
+						if (callback) callback();
+					}
+			));
 			break;
 		case RoutineCode::RECEIPT_OUT:
 			vibrate(VibrationDuration::MEDIUM);
 			printReceiptSnd.play();
 			receiptVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					printReceiptSndBuf.getDuration(), &receiptSprite,
-					receiptSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handleTimedAction(printReceiptSndBuf.getDuration(), [this, callback]() -> void {
-				releaseRunningAnimation();
-				vibrate(VibrationDuration::SHORT);
-				if (callback) callback();
-			});
+					printReceiptSndBuf.getDuration(), receiptSpritePosition,
+					VerticalOffsetAnimationType::TOP_TO_ORIGIN,
+					receiptSprite.getLocalBounds().height,
+					[this](OffsetAnimationUpdate update) -> void {
+						handleOffsetAnimationUpdate(&receiptSprite, &update);
+					},
+					[this, callback]() -> void {
+						vibrate(VibrationDuration::SHORT);
+						if (callback) callback();
+					}
+			));
 			break;
 		}
 	}
@@ -1972,6 +2138,7 @@ private:
 		{
 			actionTimer = new ActionTimer(duration, [this, action]() -> void {
 				action();
+				delete actionTimer;
 				actionTimer = nullptr;
 			});
 		}
