@@ -314,10 +314,22 @@ private:
 
 	//- Textures and Sprites
 	sf::Texture backgnd_texture;           sf::Sprite backgnd_sprite;
-	sf::Texture card_texture;              sf::Sprite card_sprite;			sf::Vector2f card_sprite_position = sf::Vector2f(740, 200);
-	sf::Texture cash_large_texture;        sf::Sprite cash_large_sprite;	sf::Vector2f cash_large_sprite_position = sf::Vector2f(90, 370);
-	sf::Texture cash_small_texture;        sf::Sprite cash_small_sprite;	sf::Vector2f cash_small_sprite_position = sf::Vector2f(695, 463);
-	sf::Texture receipt_texture;           sf::Sprite receipt_sprite;		sf::Vector2f receipt_sprite_position = sf::Vector2f(740, 54);
+
+	sf::Texture card_texture;              sf::Sprite card_sprite;
+	sf::Vector2f card_sprite_position = sf::Vector2f(740, 198);
+	sf::RectangleShape card_mask;
+
+	sf::Texture cash_large_texture;        sf::Sprite cash_large_sprite;
+	sf::Vector2f cash_large_sprite_position = sf::Vector2f(90, 370);
+	sf::RectangleShape cash_large_mask;
+
+	sf::Texture cash_small_texture;        sf::Sprite cash_small_sprite;
+	sf::Vector2f cash_small_sprite_position = sf::Vector2f(695, 463);
+	sf::RectangleShape cash_small_mask;
+
+	sf::Texture receipt_texture;           sf::Sprite receipt_sprite;
+	sf::Vector2f receipt_sprite_position = sf::Vector2f(740, 54);
+	sf::RectangleShape receipt_mask;
 
 	//- Sound Buffers and Sounds
 	sf::SoundBuffer card_snd_buf;          sf::Sound card_snd;
@@ -611,11 +623,27 @@ private:
 		//- Assign texture to sprite
 		backgnd_sprite.setTexture(backgnd_texture);
 
+		sf::IntRect ir;
 
-		card_sprite.setTexture(card_texture);             card_sprite.setPosition(card_sprite_position);
-		cash_large_sprite.setTexture(cash_large_texture); cash_large_sprite.setPosition(cash_large_sprite_position);
-		cash_small_sprite.setTexture(cash_small_texture); cash_small_sprite.setPosition(cash_small_sprite_position);
-		receipt_sprite.setTexture(receipt_texture);       receipt_sprite.setPosition(receipt_sprite_position);
+		ir = sf::IntRect(716, 0, 197, 198);
+		card_sprite.setTexture(card_texture);             			 			card_sprite.setPosition(card_sprite_position);
+		card_mask.setSize(sf::Vector2f(ir.width, ir.height));		 		card_mask.setPosition(ir.left, ir.top);
+		card_mask.setTexture(&backgnd_texture);			  			 	card_mask.setTextureRect(ir);
+
+		ir = sf::IntRect(80, 0, 484, 370);
+		cash_large_sprite.setTexture(cash_large_texture); 			 			cash_large_sprite.setPosition(cash_large_sprite_position);
+		cash_large_mask.setSize(sf::Vector2f(ir.width, ir.height));  		cash_large_mask.setPosition(ir.left, ir.top);
+		cash_large_mask.setTexture(&backgnd_texture);	  			 	cash_large_mask.setTextureRect(ir);
+
+		ir = sf::IntRect(688, 250, 250, 213);
+		cash_small_sprite.setTexture(cash_small_texture); 			 			cash_small_sprite.setPosition(cash_small_sprite_position);
+		cash_small_mask.setSize(sf::Vector2f(ir.width, ir.height));  		cash_small_mask.setPosition(ir.left, ir.top);
+		cash_small_mask.setTexture(&backgnd_texture);				 	cash_small_mask.setTextureRect(ir);
+
+		ir = sf::IntRect(716, 0, 197, 54);
+		receipt_sprite.setTexture(receipt_texture);       			  			receipt_sprite.setPosition(receipt_sprite_position);
+		receipt_mask.setSize(sf::Vector2f(ir.width, ir.height));      		receipt_mask.setPosition(ir.left, ir.top);
+		receipt_mask.setTexture(&backgnd_texture);				      	receipt_mask.setTextureRect(ir);
 
 		//- Assign buffer to sounds
 		card_snd.setBuffer(card_snd_buf);
@@ -1538,13 +1566,25 @@ private:
 
 		window.draw(backgnd_sprite);
 		if (card_visible)
+		{
 			window.draw(card_sprite);
+			window.draw(card_mask);
+		}
 		if (cash_large_visible)
+		{
 			window.draw(cash_large_sprite);
+			window.draw(cash_large_mask);
+		}
 		if (cash_small_visible)
+		{
 			window.draw(cash_small_sprite);
+			window.draw(cash_small_mask);
+		}
 		if (receipt_visible)
+		{
 			window.draw(receipt_sprite);
+			window.draw(receipt_mask);
+		}
 		scr_render();
 
 #ifdef SHOW_CURSOR
@@ -1764,8 +1804,12 @@ private:
 		case RoutineCode::CASH_LARGE_OUT:
 			cash_snd.play();
 			vibrate(VibrationDuration::MEDIUM);
+			cash_large_visible = true;
+			addRunningAnimation(new VerticalOffsetAnimation(
+					cash_snd_buf.getDuration(), &cash_large_sprite,
+					cash_large_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
 			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
-				cash_large_visible = true;
+				releaseRunningAnimation();
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
@@ -1773,8 +1817,13 @@ private:
 		case RoutineCode::CASH_SMALL_IN:
 			cash_snd.play();
 			vibrate(VibrationDuration::MEDIUM);
-			cash_small_visible = false;
+			addRunningAnimation(new VerticalOffsetAnimation(
+					cash_snd_buf.getDuration(), &cash_small_sprite,
+					cash_small_sprite_position, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
 			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+				releaseRunningAnimation();
+				cash_small_visible = false;
+				cash_small_sprite.setPosition(cash_small_sprite_position);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
@@ -1782,8 +1831,12 @@ private:
 		case RoutineCode::RECEIPT_OUT:
 			vibrate(VibrationDuration::MEDIUM);
 			print_receipt_snd.play();
+			receipt_visible = true;
+			addRunningAnimation(new VerticalOffsetAnimation(
+					print_receipt_snd_buf.getDuration(), &receipt_sprite,
+					receipt_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
 			handle_timed_action(print_receipt_snd_buf.getDuration(), [this, callback]() -> void {
-				receipt_visible = true;
+				releaseRunningAnimation();
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
