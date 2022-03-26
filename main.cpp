@@ -56,41 +56,41 @@ class AndroidGlue
 {
 private:
 	// General
-	ANativeActivity* native_activity_handle;
+	ANativeActivity* nativeActivityHandle;
 	JavaVM* vm;
 	JNIEnv* env;
 
 	// Vibrate
-	jobject vibrate_object;
-	jmethodID vibrate_method;
+	jobject vibrateObject;
+	jmethodID vibrateMethod;
 
 	void init()
 	{
 		// First we'll need the native activity handle
-		native_activity_handle = sf::getNativeActivity();
+		nativeActivityHandle = sf::getNativeActivity();
 
 		// Retrieve the AssetManager so we can read resources from the APK
-		asset_manager = native_activity_handle->assetManager;
+		assetManager = nativeActivityHandle->assetManager;
 
 		// Retrieve the JVM and JNI environment
-		vm = native_activity_handle->vm;
-		env = native_activity_handle->env;
+		vm = nativeActivityHandle->vm;
+		env = nativeActivityHandle->env;
 
 		// Attach this thread to the main thread
-		attach_to_main_thread();
+		attachToMainThread();
 
 		// Retrieve class information
-		jclass native_activity = env->FindClass("android/app/NativeActivity");
+		jclass nativeActivity = env->FindClass("android/app/NativeActivity");
 		jclass context = env->FindClass("android/content/Context");
 
-		init_vibration(context, native_activity);
+		initVibration(context, nativeActivity);
 
 		// Free references
 		env->DeleteLocalRef(context);
-		env->DeleteLocalRef(native_activity);
+		env->DeleteLocalRef(nativeActivity);
 	}
 
-	bool attach_to_main_thread()
+	bool attachToMainThread()
 	{
 		JavaVMAttachArgs attachargs;
 		attachargs.version = JNI_VERSION_1_6;
@@ -103,45 +103,45 @@ private:
 		return true;
 	}
 
-	void init_vibration(jclass context, jclass native_activity)
+	void initVibration(jclass context, jclass nativeActivity)
 	{
 		// Get the value of a constant
-		jfieldID vibrator_service_field_id = env->GetStaticFieldID(context, "VIBRATOR_SERVICE", "Ljava/lang/String;");
-		jobject vibrator_service_object = env->GetStaticObjectField(context, vibrator_service_field_id);
+		jfieldID vibratorServiceFieldId = env->GetStaticFieldID(context, "VIBRATOR_SERVICE", "Ljava/lang/String;");
+		jobject vibratorServiceObject = env->GetStaticObjectField(context, vibratorServiceFieldId);
 
 		// Get the method 'getSystemService' and call it
-		jmethodID get_system_service_method_id = env->GetMethodID(native_activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
-		vibrate_object = env->CallObjectMethod(native_activity_handle->clazz, get_system_service_method_id, vibrator_service_object);
+		jmethodID getSystemServiceMethodId = env->GetMethodID(nativeActivity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+		vibrateObject = env->CallObjectMethod(nativeActivityHandle->clazz, getSystemServiceMethodId, vibratorServiceObject);
 
 		// Get the object's class and retrieve the member name
-		jclass vibrate_class = env->GetObjectClass(vibrate_object);
-		vibrate_method = env->GetMethodID(vibrate_class, "vibrate", "(J)V");
+		jclass vibrateClass = env->GetObjectClass(vibrateObject);
+		vibrateMethod = env->GetMethodID(vibrateClass, "vibrate", "(J)V");
 
 		// Free references
-		env->DeleteLocalRef(vibrate_class);
-		env->DeleteLocalRef(vibrator_service_object);
+		env->DeleteLocalRef(vibrateClass);
+		env->DeleteLocalRef(vibratorServiceObject);
 	}
 
 public:
 	// Asset Manager
-	AAssetManager* asset_manager;
+	AAssetManager* assetManager;
 
 	AndroidGlue()
 	{
 		init();
 	}
 
-	void vibrate(int duration_millis)
+	void vibrate(int durationMillis)
 	{
-		jlong duration_millis_jlong = duration_millis;
+		jlong durationMillisJlong = durationMillis;
 		// Bzzz!
-		env->CallVoidMethod(vibrate_object, vibrate_method, duration_millis_jlong);
+		env->CallVoidMethod(vibrateObject, vibrateMethod, durationMillisJlong);
 	}
 
 	void release()
 	{
 		// Free references
-		env->DeleteLocalRef(vibrate_object);
+		env->DeleteLocalRef(vibrateObject);
 
 		// Detach thread again
 		vm->DetachCurrentThread();
@@ -154,7 +154,7 @@ class Animation
 {
 protected:
 	sf::Time duration;
-	sf::Clock running_time_clock;
+	sf::Clock runningTimeClock;
 
 	Animation(sf::Time duration)
 	{
@@ -163,7 +163,7 @@ protected:
 
 public:
 	virtual ~Animation() = default;
-	virtual void update(sf::Time delta_time) = 0;
+	virtual void update(sf::Time deltaTime) = 0;
 };
 
 class OffsetAnimation : public Animation
@@ -172,7 +172,7 @@ private:
 	sf::Sprite* sprite;
 
 protected:
-	sf::Vector2f target_offset;
+	sf::Vector2f targetOffset;
 
 	OffsetAnimation(sf::Time duration, sf::Sprite* sprite) : Animation(duration)
 	{
@@ -181,28 +181,28 @@ protected:
 
 public:
 	OffsetAnimation(sf::Time duration, sf::Sprite* sprite,
-					sf::Vector2f start_position, sf::Vector2f target_offset) :
+					sf::Vector2f startPosition, sf::Vector2f targetOffset) :
 					OffsetAnimation(duration, sprite)
 	{
-		setStartPosition(start_position);
-		this->target_offset = target_offset;
+		setStartPosition(startPosition);
+		this->targetOffset = targetOffset;
 	}
 
 	virtual ~OffsetAnimation() = default;
 
-	void update(sf::Time delta_time)
+	void update(sf::Time deltaTime)
 	{
-		if (running_time_clock.getElapsedTime() <= duration)
+		if (runningTimeClock.getElapsedTime() <= duration)
 		{
-			float offset_x = (delta_time * target_offset.x) / duration;
-			float offset_y = (delta_time * target_offset.y) / duration;
-			sprite->move(offset_x, offset_y);
+			float offsetX = (deltaTime * targetOffset.x) / duration;
+			float offsetY = (deltaTime * targetOffset.y) / duration;
+			sprite->move(offsetX, offsetY);
 		}
 	}
 
-	void setStartPosition(sf::Vector2f start_position)
+	void setStartPosition(sf::Vector2f startPosition)
 	{
-		sprite->setPosition(start_position);
+		sprite->setPosition(startPosition);
 	}
 };
 
@@ -218,19 +218,19 @@ public:
 	VerticalOffsetAnimation(
 			sf::Time duration,
 			sf::Sprite* sprite,
-			sf::Vector2f origin_position,
+			sf::Vector2f originPosition,
 			VerticalOffsetAnimationType type
 	) : OffsetAnimation(duration, sprite)
 	{
 		switch (type) {
 			case VerticalOffsetAnimationType::TOP_TO_ORIGIN:
 				setStartPosition(sf::Vector2f(
-						origin_position.x, origin_position.y - sprite->getLocalBounds().height));
-				this->target_offset = sf::Vector2f(0, sprite->getLocalBounds().height);
+						originPosition.x, originPosition.y - sprite->getLocalBounds().height));
+				this->targetOffset = sf::Vector2f(0, sprite->getLocalBounds().height);
 				break;
 			case VerticalOffsetAnimationType::ORIGIN_TO_TOP:
-				setStartPosition(origin_position);
-				this->target_offset = sf::Vector2f(0, -sprite->getLocalBounds().height);
+				setStartPosition(originPosition);
+				this->targetOffset = sf::Vector2f(0, -sprite->getLocalBounds().height);
 				break;
 		}
 	}
@@ -242,7 +242,7 @@ class ActionTimer
 {
 private:
 	sf::Clock clock;
-	sf::Time target_duration;
+	sf::Time targetDuration;
 	std::function<void()> callback;
 
 	void release()
@@ -251,22 +251,16 @@ private:
 	}
 
 public:
-	ActionTimer(sf::Time target_duration, std::function<void()> callback)
+	ActionTimer(sf::Time targetDuration, std::function<void()> callback)
 	{
-		this->target_duration = target_duration;
-		this->callback = callback;
-	}
-
-	void startTimer(sf::Time target_duration, std::function<void()> callback)
-	{
-		this->target_duration = target_duration;
+		this->targetDuration = targetDuration;
 		this->callback = callback;
 	}
 
 	void update()
 	{
-		sf::Time elapsed_time = clock.getElapsedTime();
-		if (elapsed_time <= target_duration) return;
+		sf::Time elapsedTime = clock.getElapsedTime();
+		if (elapsedTime <= targetDuration) return;
 		callback();
 		release();
 	}
@@ -284,10 +278,10 @@ private:
 	sf::Vector2u currentWindowSize;
 
 	//- States
-	bool card_visible = true, cash_large_visible = false, cash_small_visible = false, receipt_visible = false;
-	unsigned short int scr_state = 1;
-	unsigned short int pin = 0; unsigned short int pin_count = 0; unsigned short int pin_retry = 0;
-	int amount = 0; unsigned short int amount_count = 0;
+	bool cardVisible = true, cashLargeVisible = false, cashSmallVisible = false, receiptVisible = false;
+	unsigned short int scrState = 1;
+	unsigned short int pin = 0; unsigned short int pinCount = 0; unsigned short int pinRetry = 0;
+	int amount = 0; unsigned short int amountCount = 0;
 	bool blocked = false;
 	bool accountSuspendedFlag = false;
 	bool windowHasFocus = true;
@@ -296,8 +290,8 @@ private:
 	struct User
 	{
 		std::string iban;
-		std::string last_name;
-		std::string first_name;
+		std::string lastName;
+		std::string firstName;
 		unsigned short int pin;
 		unsigned long long int balance;
 	};
@@ -308,60 +302,60 @@ private:
 	sf::RenderWindow window;
 	sf::Event event;
 	sf::Font font;
-	sf::Clock frame_clock;
-	sf::Clock clock;
+//	sf::Clock frameClock; // TODO
+//	sf::Clock clock;
 	sf::Time elapsed;
 
 	//- Textures and Sprites
-	sf::Texture backgnd_texture;           sf::Sprite backgnd_sprite;
+	sf::Texture backgroundTexture;         	sf::Sprite backgroundSprite;
 
-	sf::Texture card_texture;              sf::Sprite card_sprite;
-	sf::Vector2f card_sprite_position = sf::Vector2f(740, 198);
-	sf::RectangleShape card_mask;
+	sf::Texture cardTexture;              	sf::Sprite cardSprite;
+	sf::Vector2f cardSpritePosition = sf::Vector2f(740, 198);
+	sf::RectangleShape cardMask;
 
-	sf::Texture cash_large_texture;        sf::Sprite cash_large_sprite;
-	sf::Vector2f cash_large_sprite_position = sf::Vector2f(90, 370);
-	sf::RectangleShape cash_large_mask;
+	sf::Texture cashLargeTexture;        	sf::Sprite cashLargeSprite;
+	sf::Vector2f cashLargeSpritePosition = sf::Vector2f(90, 370);
+	sf::RectangleShape cashLargeMask;
 
-	sf::Texture cash_small_texture;        sf::Sprite cash_small_sprite;
-	sf::Vector2f cash_small_sprite_position = sf::Vector2f(695, 463);
-	sf::RectangleShape cash_small_mask;
+	sf::Texture cashSmallTexture;        	sf::Sprite cashSmallSprite;
+	sf::Vector2f cashSmallSpritePosition = sf::Vector2f(695, 463);
+	sf::RectangleShape cashSmallMask;
 
-	sf::Texture receipt_texture;           sf::Sprite receipt_sprite;
-	sf::Vector2f receipt_sprite_position = sf::Vector2f(740, 54);
-	sf::RectangleShape receipt_mask;
+	sf::Texture receiptTexture;           	sf::Sprite receiptSprite;
+	sf::Vector2f receiptSpritePosition = sf::Vector2f(740, 54);
+	sf::RectangleShape receiptMask;
 
 	//- Sound Buffers and Sounds
-	sf::SoundBuffer card_snd_buf;          sf::Sound card_snd;
-	sf::SoundBuffer menu_snd_buf;          sf::Sound menu_snd;
-	sf::SoundBuffer click_snd_buf;         sf::Sound click_snd;
-	sf::SoundBuffer key_snd_buf;           sf::Sound key_snd;
-	sf::SoundBuffer cash_snd_buf;          sf::Sound cash_snd;
-	sf::SoundBuffer print_receipt_snd_buf; sf::Sound print_receipt_snd;
+	sf::SoundBuffer cardSndBuf;          	sf::Sound cardSnd;
+	sf::SoundBuffer menuSndBuf;          	sf::Sound menuSnd;
+	sf::SoundBuffer clickSndBuf;         	sf::Sound clickSnd;
+	sf::SoundBuffer keySndBuf;           	sf::Sound keySnd;
+	sf::SoundBuffer cashSndBuf;          	sf::Sound cashSnd;
+	sf::SoundBuffer printReceiptSndBuf; 	sf::Sound printReceiptSnd;
 
 	//- Processing Time
-	sf::Time processing_time = sf::seconds(2);
+	sf::Time processingTime = sf::seconds(2);
 
 	//- Text
-	sf::Text scr_clock;
-	sf::Text username_scr;
-	sf::Text iban_scr;
-	sf::Text L1_txt;
-	sf::Text R1_txt;
-	sf::Text R3_txt;
+	sf::Text scrClock;
+	sf::Text usernameScr;
+	sf::Text ibanScr;
+	sf::Text L1Txt;
+	sf::Text R1Txt;
+	sf::Text R3Txt;
 	sf::Text dialog;
-	sf::Text live_txt;
+	sf::Text liveTxt;
 
 	//- Shapes
-	sf::RectangleShape pin_border_shape;
-	sf::RectangleShape amount_border_shape;
+	sf::RectangleShape pinBorderShape;
+	sf::RectangleShape amountBorderShape;
 
 	//- Users
 	std::vector<User> users;
 	User* user;
 
 	//- Text files
-	const std::string database_path = "database/database.txt";
+	const std::string databasePath = "database/database.txt";
 	std::stringstream database;
 	std::ofstream log;
 
@@ -369,16 +363,16 @@ private:
 	std::ostringstream oss;
 
 	//- Screen Info Strings
-	std::ostringstream username_scr_str;
-	std::ostringstream iban_scr_str;
+	std::ostringstream usernameScrStr;
+	std::ostringstream ibanScrStr;
 	std::ostringstream convert;
 	std::ostringstream balance;
 
 	//- Chat arrays for live text
-	std::string pin_live_txt = "****"; std::string amount_live_txt = "";
+	std::string pinLiveTxt = "****"; std::string amountLiveTxt = "";
 
 	//- Outstanding Click / Touch Event
-	sf::Vector2i* outstanding_interaction_event;
+	sf::Vector2i* outstandIngInteractionEvent;
 
 	//- Cursor
 	const int CURSOR_CIRCLE_RADIUS = 16;
@@ -388,11 +382,12 @@ private:
     ActionTimer* actionTimer;
 
     //- Animations
-    Animation* running_animation = nullptr;
-    sf::Time card_animation_time = sf::milliseconds(1002);
+    Animation* runningAnimation = nullptr;
+    // this is different than the card sound time because the end click is not at the end of the sound
+    sf::Time cardAnimationTime = sf::milliseconds(1002);
 
     //- Frame Delta Clock
-    sf::Clock frame_delta_clock;
+    sf::Clock frameDeltaClock;
 
 	//- Routine Action Codes
 	enum RoutineCode {
@@ -412,10 +407,10 @@ private:
 	};
 
 #ifdef TARGET_ANDROID
-	AndroidGlue android_glue;
+	AndroidGlue androidGlue;
 #endif
 
-	void init_win()
+	void initWin()
 	{
 #ifdef TARGET_ANDROID // We support letterbox mode on Android devices
 		screen = sf::VideoMode(sf::VideoMode::getDesktopMode());
@@ -426,7 +421,7 @@ private:
 		window.setView(view);
 #else
 		screen = sf::VideoMode(CANVAS_WIDTH, CANVAS_HEIGHT);
-		window.create(screen, program_title(), sf::Style::Titlebar | sf::Style::Close);
+		window.create(screen, programTitle(), sf::Style::Titlebar | sf::Style::Close);
 #endif
 		window.setFramerateLimit(60);
 		window.setKeyRepeatEnabled(false);
@@ -468,7 +463,7 @@ private:
 		return view;
 	}
 
-	sf::Vector2i* get_scaled_pointer_coordinates(int originalX, int originalY)
+	sf::Vector2i* getScaledPointerCoordinates(int originalX, int originalY)
 	{
 #ifdef TARGET_ANDROID
 		int left = view.getViewport().left * currentWindowSize.x;
@@ -483,18 +478,18 @@ private:
 #endif
 	}
 
-	void load_database()
+	void loadDatabase()
     {
 #ifdef TARGET_ANDROID
         // In order to properly read asset files in android, we use the Asset NDK Module
         // Links:
         // https://developer.android.com/ndk/reference/group/asset
         // https://stackoverflow.com/a/33957074
-		if (android_glue.asset_manager != nullptr)
+		if (androidGlue.assetManager != nullptr)
 		{
 			// Open your file
-			std::string file_path = res(database_path);
-			AAsset* file = AAssetManager_open(android_glue.asset_manager, file_path.c_str(), AASSET_MODE_BUFFER);
+			std::string filePath = res(databasePath);
+			AAsset* file = AAssetManager_open(androidGlue.assetManager, filePath.c_str(), AASSET_MODE_BUFFER);
 			// Get the file length
 			size_t fileLength = AAsset_getLength(file);
 
@@ -513,23 +508,23 @@ private:
 			delete [] fileContent;
 		}
 #else
-        std::ifstream file_stream(res(database_path));
-        if (file_stream.is_open())
+        std::ifstream fileStream(res(databasePath));
+        if (fileStream.is_open())
         {
-            database << file_stream.rdbuf();
-            file_stream.close();
+            database << fileStream.rdbuf();
+            fileStream.close();
         }
 #endif
 
         if (database.tellp() > std::streampos(0))
         {
-            oss << get_time_cli() << "User database loaded"; log_msg(oss.str());
-            load_clients();
+            oss << getTimeCli() << "User database loaded"; logMsg(oss.str());
+            loadClients();
         }
         else
         {
-            oss << get_time_cli() << "User database not found"; log_msg(oss.str());
-            load_placeholder_client();
+            oss << getTimeCli() << "User database not found"; logMsg(oss.str());
+            loadPlaceholderClient();
         }
     }
 
@@ -537,54 +532,54 @@ private:
 	{
 		//- Create new log file
 #ifndef TARGET_ANDROID
-		log.open(get_name_log().c_str());
+		log.open(getLogFileName().c_str());
 #endif
 
 		//- Init States
-		init_states();
+		initStates();
 
 		//- Initialize Window
-		init_win();
+		initWin();
 
 		//- Initialize CLI
 		system("color 0A");
-		oss << "================================================================================"; log_msg(oss.str());
-		oss << "==================================ATM Software=================================="; log_msg(oss.str());
-		oss << "================================================================================"; log_msg(oss.str());
-		oss << get_time_cli() << "ATM is now powered on"; log_msg(oss.str());
+		oss << "================================================================================"; logMsg(oss.str());
+		oss << "==================================ATM Software=================================="; logMsg(oss.str());
+		oss << "================================================================================"; logMsg(oss.str());
+		oss << getTimeCli() << "ATM is now powered on"; logMsg(oss.str());
 
         //- Load database
-		load_database();
+		loadDatabase();
 
 		//- Load fonts
 		if (font.loadFromFile(res("courier_new.ttf")))
 		{
-			oss << get_time_cli() << "Font loaded"; log_msg(oss.str());
+			oss << getTimeCli() << "Font loaded"; logMsg(oss.str());
 		}
 		else
 		{
-			oss << get_time_cli() << "Font not found"; log_msg(oss.str());
+			oss << getTimeCli() << "Font not found"; logMsg(oss.str());
 			window.close();
 		}
 
 		//- Load textures
-		if (!backgnd_texture.loadFromFile(res("backgnd_texture.png")) ||
-			!card_texture.loadFromFile(res("card_texture.png")) ||
-			!cash_large_texture.loadFromFile(res("cash_large_texture.jpg")) ||
-			!cash_small_texture.loadFromFile(res("cash_small_texture.jpg")) ||
-			!receipt_texture.loadFromFile(res("receipt_texture.jpg")))
+		if (!backgroundTexture.loadFromFile(res("backgnd_texture.png")) ||
+			!cardTexture.loadFromFile(res("card_texture.png")) ||
+			!cashLargeTexture.loadFromFile(res("cash_large_texture.jpg")) ||
+			!cashSmallTexture.loadFromFile(res("cash_small_texture.jpg")) ||
+			!receiptTexture.loadFromFile(res("receipt_texture.jpg")))
 		{
-			oss << get_time_cli() << "One or more textures not found"; log_msg(oss.str());
+			oss << getTimeCli() << "One or more textures not found"; logMsg(oss.str());
 			window.close();
 		}
 		else
 		{
-			oss << get_time_cli() << "Textures loaded"; log_msg(oss.str());
+			oss << getTimeCli() << "Textures loaded"; logMsg(oss.str());
 		}
 
 		//- Load sounds in the sound buffer
-		std::vector<sf::SoundBuffer*> sound_ptr = { &card_snd_buf, &menu_snd_buf, &click_snd_buf, &key_snd_buf, &cash_snd_buf, &print_receipt_snd_buf };
-		std::vector<std::string> sound_arr = {
+		std::vector<sf::SoundBuffer*> soundPtr = { &cardSndBuf, &menuSndBuf, &clickSndBuf, &keySndBuf, &cashSndBuf, &printReceiptSndBuf };
+		std::vector<std::string> soundArr = {
 		        res("card_snd.wav"),
 		        res("menu_snd.wav"),
 		        res("click_snd.wav"),
@@ -592,86 +587,85 @@ private:
 		        res("cash_snd.wav"),
 		        res("print_receipt_snd.wav")
 		};
-		bool sound_ok = true;
-		//if (sound_ptr.size() != sound_arr.size()) {  }
-		for (int i = 0; i < sound_ptr.size(); ++i)
+		bool soundOk = true;
+		for (int i = 0; i < soundPtr.size(); ++i)
 		{
-			if (!sound_ptr[i]->loadFromFile(sound_arr[i]))
+			if (!soundPtr[i]->loadFromFile(soundArr[i]))
 			{
-				oss << get_time_cli() << "\"" << sound_arr[i] << "\" not found"; log_msg(oss.str());
+				oss << getTimeCli() << "\"" << soundArr[i] << "\" not found"; logMsg(oss.str());
 				window.close();
-				sound_ok = false;
+				soundOk = false;
 				break;
 			}
 		}
-		if(sound_ok)
-			oss << get_time_cli() << "Sounds loaded"; log_msg(oss.str());
+		if(soundOk)
+			oss << getTimeCli() << "Sounds loaded"; logMsg(oss.str());
 
 		//- Ready to go
-		oss << get_time_cli() << "ATM is ready to use"; log_msg(oss.str());
+		oss << getTimeCli() << "ATM is ready to use"; logMsg(oss.str());
 
 		//- Assign font to text
-		scr_clock.setFont(font);
-		username_scr.setFont(font);
-		iban_scr.setFont(font);
-		L1_txt.setFont(font);
-		R1_txt.setFont(font);
-		R3_txt.setFont(font);
+		scrClock.setFont(font);
+		usernameScr.setFont(font);
+		ibanScr.setFont(font);
+		L1Txt.setFont(font);
+		R1Txt.setFont(font);
+		R3Txt.setFont(font);
 		dialog.setFont(font);
-		live_txt.setFont(font);
+		liveTxt.setFont(font);
 
 		//- Assign texture to sprite
-		backgnd_sprite.setTexture(backgnd_texture);
+		backgroundSprite.setTexture(backgroundTexture);
 
 		sf::IntRect ir;
 
 		ir = sf::IntRect(716, 0, 197, 198);
-		card_sprite.setTexture(card_texture);             			 			card_sprite.setPosition(card_sprite_position);
-		card_mask.setSize(sf::Vector2f(ir.width, ir.height));		 		card_mask.setPosition(ir.left, ir.top);
-		card_mask.setTexture(&backgnd_texture);			  			 	card_mask.setTextureRect(ir);
+		cardSprite.setTexture(cardTexture);             			 			cardSprite.setPosition(cardSpritePosition);
+		cardMask.setSize(sf::Vector2f(ir.width, ir.height));		 		cardMask.setPosition(ir.left, ir.top);
+		cardMask.setTexture(&backgroundTexture);			  			 	cardMask.setTextureRect(ir);
 
 		ir = sf::IntRect(80, 0, 484, 370);
-		cash_large_sprite.setTexture(cash_large_texture); 			 			cash_large_sprite.setPosition(cash_large_sprite_position);
-		cash_large_mask.setSize(sf::Vector2f(ir.width, ir.height));  		cash_large_mask.setPosition(ir.left, ir.top);
-		cash_large_mask.setTexture(&backgnd_texture);	  			 	cash_large_mask.setTextureRect(ir);
+		cashLargeSprite.setTexture(cashLargeTexture); 			 				cashLargeSprite.setPosition(cashLargeSpritePosition);
+		cashLargeMask.setSize(sf::Vector2f(ir.width, ir.height));  		cashLargeMask.setPosition(ir.left, ir.top);
+		cashLargeMask.setTexture(&backgroundTexture);	  			 	cashLargeMask.setTextureRect(ir);
 
 		ir = sf::IntRect(688, 250, 250, 213);
-		cash_small_sprite.setTexture(cash_small_texture); 			 			cash_small_sprite.setPosition(cash_small_sprite_position);
-		cash_small_mask.setSize(sf::Vector2f(ir.width, ir.height));  		cash_small_mask.setPosition(ir.left, ir.top);
-		cash_small_mask.setTexture(&backgnd_texture);				 	cash_small_mask.setTextureRect(ir);
+		cashSmallSprite.setTexture(cashSmallTexture); 			 				cashSmallSprite.setPosition(cashSmallSpritePosition);
+		cashSmallMask.setSize(sf::Vector2f(ir.width, ir.height));  		cashSmallMask.setPosition(ir.left, ir.top);
+		cashSmallMask.setTexture(&backgroundTexture);				 	cashSmallMask.setTextureRect(ir);
 
 		ir = sf::IntRect(716, 0, 197, 54);
-		receipt_sprite.setTexture(receipt_texture);       			  			receipt_sprite.setPosition(receipt_sprite_position);
-		receipt_mask.setSize(sf::Vector2f(ir.width, ir.height));      		receipt_mask.setPosition(ir.left, ir.top);
-		receipt_mask.setTexture(&backgnd_texture);				      	receipt_mask.setTextureRect(ir);
+		receiptSprite.setTexture(receiptTexture);       			  			receiptSprite.setPosition(receiptSpritePosition);
+		receiptMask.setSize(sf::Vector2f(ir.width, ir.height));      		receiptMask.setPosition(ir.left, ir.top);
+		receiptMask.setTexture(&backgroundTexture);				      	receiptMask.setTextureRect(ir);
 
 		//- Assign buffer to sounds
-		card_snd.setBuffer(card_snd_buf);
-		menu_snd.setBuffer(menu_snd_buf);
-		click_snd.setBuffer(click_snd_buf);
-		key_snd.setBuffer(key_snd_buf);
-		cash_snd.setBuffer(cash_snd_buf);
-		print_receipt_snd.setBuffer(print_receipt_snd_buf);
+		cardSnd.setBuffer(cardSndBuf);
+		menuSnd.setBuffer(menuSndBuf);
+		clickSnd.setBuffer(clickSndBuf);
+		keySnd.setBuffer(keySndBuf);
+		cashSnd.setBuffer(cashSndBuf);
+		printReceiptSnd.setBuffer(printReceiptSndBuf);
 
 		// Cursor
 		cursorCircle.setFillColor(sf::Color(255, 0, 0, 127));
 	}
 
-	void init_states()
+	void initStates()
 	{
 		//- Initialize States
-		card_visible = true; cash_large_visible = false; cash_small_visible = false; receipt_visible = false;
-		scr_state = 1;
-		pin = 0; pin_count = 0; pin_retry = 0;
-		amount = 0; amount_count = 0;
-		amount_live_txt = "";
+		cardVisible = true; cashLargeVisible = false; cashSmallVisible = false; receiptVisible = false;
+		scrState = 1;
+		pin = 0; pinCount = 0; pinRetry = 0;
+		amount = 0; amountCount = 0;
+		amountLiveTxt = "";
 		convert.str("");
 		balance.str("");
-		outstanding_interaction_event = nullptr;
+		outstandIngInteractionEvent = nullptr;
 		actionTimer = nullptr;
 	}
 
-	void handle_action_timer()
+	void handleActionTimer()
 	{
 		if (actionTimer != nullptr)
 		{
@@ -679,7 +673,7 @@ private:
 		}
 	}
 
-	void handle_events()
+	void handleEvents()
 	{
 		while (window.pollEvent(event))
 		{
@@ -709,18 +703,18 @@ private:
 				break;
 			case sf::Event::TouchBegan:
 				if (event.touch.finger == 0)
-					update_pointer_location(event.touch.x, event.touch.y);
+					updatePointerLocation(event.touch.x, event.touch.y);
 				break;
 			case sf::Event::MouseButtonPressed:
-				update_pointer_location(event.mouseButton.x, event.mouseButton.y);
+				updatePointerLocation(event.mouseButton.x, event.mouseButton.y);
 				break;
 			}
 		}
 	}
 
-	void update_pointer_location(int rawX, int rawY)
+	void updatePointerLocation(int rawX, int rawY)
 	{
-		sf::Vector2i* position = get_scaled_pointer_coordinates(rawX, rawY);
+		sf::Vector2i* position = getScaledPointerCoordinates(rawX, rawY);
 		cursorCircle.setPosition(
 				position->x - CURSOR_CIRCLE_RADIUS / (float) 2,
 				position->y - CURSOR_CIRCLE_RADIUS / (float) 2
@@ -729,11 +723,11 @@ private:
 			delete position;
 			return; // We have an ongoing timed action, so don't process the event
 		}
-		if (outstanding_interaction_event != nullptr) delete outstanding_interaction_event;
-		outstanding_interaction_event = position;
+		if (outstandIngInteractionEvent != nullptr) delete outstandIngInteractionEvent;
+		outstandIngInteractionEvent = position;
 	}
 
-	int get_clickable_object_code(int x, int y)
+	int getClickableObjectCode(int x, int y)
 	{
 		//===============================
 		//Input Codes
@@ -757,8 +751,8 @@ private:
 		//===============================
 		//Objects:
 		//card       = 21
-		//cash_large = 22
-		//cash_small = 23
+		//cashLarge  = 22
+		//cashSmall  = 23
 		//receipt    = 24
 		//===============================
 		//exit = 26
@@ -802,7 +796,7 @@ private:
 				return 8;
 			}
 		}
-		if ((209 <= x) && (x <= 255) && !cash_large_visible) //- Column 1 Keypad
+		if ((209 <= x) && (x <= 255) && !cashLargeVisible) //- Column 1 Keypad
 		{
 			if ((410 <= y) && (y <= 449)) //- Key: 1
 			{
@@ -817,7 +811,7 @@ private:
 				return 11;
 			}
 		}
-		if ((264 <= x) && (x <= 310) && !cash_large_visible) //- Column 2 Keypad
+		if ((264 <= x) && (x <= 310) && !cashLargeVisible) //- Column 2 Keypad
 		{
 			if ((410 <= y) && (y <= 449)) //- Key: 2
 			{
@@ -836,7 +830,7 @@ private:
 				return 15;
 			}
 		}
-		if ((319 <= x) && (x <= 365) && !cash_large_visible) //- Column 3 Keypad
+		if ((319 <= x) && (x <= 365) && !cashLargeVisible) //- Column 3 Keypad
 		{
 			if ((410 <= y) && (y <= 449)) //- Key: 3
 			{
@@ -851,7 +845,7 @@ private:
 				return 18;
 			}
 		}
-		if ((385 <= x) && (x <= 455) && !cash_large_visible) //- Column 4 Keypad
+		if ((385 <= x) && (x <= 455) && !cashLargeVisible) //- Column 4 Keypad
 		{
 			if ((410 <= y) && (y <= 449)) //- Button: Cancel
 			{
@@ -866,30 +860,30 @@ private:
 				return 20;
 			}
 		}
-		if ((card_sprite.getGlobalBounds().left <= x) && (x <= (card_sprite.getGlobalBounds().left + card_sprite.getGlobalBounds().width))) //- Object: card (x axis)
+		if ((cardSprite.getGlobalBounds().left <= x) && (x <= (cardSprite.getGlobalBounds().left + cardSprite.getGlobalBounds().width))) //- Object: card (x axis)
 		{
-			if ((card_sprite.getGlobalBounds().top <= y) && (y <= (card_sprite.getGlobalBounds().top + card_sprite.getGlobalBounds().height)) && card_visible) //- Object: card (y axis) and visibility
+			if ((cardSprite.getGlobalBounds().top <= y) && (y <= (cardSprite.getGlobalBounds().top + cardSprite.getGlobalBounds().height)) && cardVisible) //- Object: card (y axis) and visibility
 			{
 				return 21;
 			}
 		}
-		if ((cash_large_sprite.getGlobalBounds().left <= x) && (x <= (cash_large_sprite.getGlobalBounds().left + cash_large_sprite.getGlobalBounds().width))) //- Object: cash_large (x axis)
+		if ((cashLargeSprite.getGlobalBounds().left <= x) && (x <= (cashLargeSprite.getGlobalBounds().left + cashLargeSprite.getGlobalBounds().width))) //- Object: cashLarge (x axis)
 		{
-			if ((cash_large_sprite.getGlobalBounds().top <= y) && (y <= (cash_large_sprite.getGlobalBounds().top + cash_large_sprite.getGlobalBounds().height)) && cash_large_visible) //- Object: cash_large (y axis) and visibility
+			if ((cashLargeSprite.getGlobalBounds().top <= y) && (y <= (cashLargeSprite.getGlobalBounds().top + cashLargeSprite.getGlobalBounds().height)) && cashLargeVisible) //- Object: cashLarge (y axis) and visibility
 			{
 				return 22;
 			}
 		}
-		if ((cash_small_sprite.getGlobalBounds().left <= x) && (x <= (cash_small_sprite.getGlobalBounds().left + cash_small_sprite.getGlobalBounds().width))) //- Object: cash_small (x axis)
+		if ((cashSmallSprite.getGlobalBounds().left <= x) && (x <= (cashSmallSprite.getGlobalBounds().left + cashSmallSprite.getGlobalBounds().width))) //- Object: cashSmall (x axis)
 		{
-			if ((cash_small_sprite.getGlobalBounds().top <= y) && (y <= (cash_small_sprite.getGlobalBounds().top + cash_small_sprite.getGlobalBounds().height)) && cash_small_visible) //- Object: cash_small (y axis) and visibility
+			if ((cashSmallSprite.getGlobalBounds().top <= y) && (y <= (cashSmallSprite.getGlobalBounds().top + cashSmallSprite.getGlobalBounds().height)) && cashSmallVisible) //- Object: cashSmall (y axis) and visibility
 			{
 				return 23;
 			}
 		}
-		if ((receipt_sprite.getGlobalBounds().left <= x) && (x <= (receipt_sprite.getGlobalBounds().left + receipt_sprite.getGlobalBounds().width))) //- Object: receipt (x axis)
+		if ((receiptSprite.getGlobalBounds().left <= x) && (x <= (receiptSprite.getGlobalBounds().left + receiptSprite.getGlobalBounds().width))) //- Object: receipt (x axis)
 		{
-			if ((receipt_sprite.getGlobalBounds().top <= y) && (y <= (receipt_sprite.getGlobalBounds().top + receipt_sprite.getGlobalBounds().height)) && receipt_visible) //- Object: receipt (y axis) and visibility
+			if ((receiptSprite.getGlobalBounds().top <= y) && (y <= (receiptSprite.getGlobalBounds().top + receiptSprite.getGlobalBounds().height)) && receiptVisible) //- Object: receipt (y axis) and visibility
 			{
 				return 24;
 			}
@@ -904,10 +898,10 @@ private:
 		return 0;
 	}
 
-	void update(sf::Time delta_time)
+	void update(sf::Time deltaTime)
 	{
 		//======================================================================================================================================================================================================================
-		//Screen States (scr_state)
+		//Screen States (scrState)
 		//======================================================================================================================================================================================================================
 		//(1)Insert card --> (23)Processing --> (2)Insert PIN --> (3)MAIN MENU --Withdraw----------> (4)Enter Amount --> (5)Confirm -------------------------> (6)Processing -----> (7)Receipt? --y/n--> (8)Another transaction?
 		//                                                    |                |                                     |
@@ -930,122 +924,122 @@ private:
 		//======================================================================================================================================================================================================================
 
 		int clickableObjectCode = -1;
-		if (outstanding_interaction_event != nullptr)
+		if (outstandIngInteractionEvent != nullptr)
 		{
-			clickableObjectCode = get_clickable_object_code(outstanding_interaction_event->x, outstanding_interaction_event->y);
-			delete outstanding_interaction_event;
-			outstanding_interaction_event = nullptr;
+			clickableObjectCode = getClickableObjectCode(outstandIngInteractionEvent->x, outstandIngInteractionEvent->y);
+			delete outstandIngInteractionEvent;
+			outstandIngInteractionEvent = nullptr;
 		}
 
-		switch (scr_state)
+		switch (scrState)
 		{
 			case 1: //- (1) Insert Card
 				if (clickableObjectCode == 21)
 				{
-					event_routine(RoutineCode::CARD_IN, [this]() -> void {
-						scr_state = 23;
+					eventRoutine(RoutineCode::CARD_IN, [this]() -> void {
+						scrState = 23;
 					});
 				}
 				break;
 			case 2: //- (2) Insert PIN
-				if (pin_count < 4)
+				if (pinCount < 4)
 				{
 					switch (clickableObjectCode)
 					{
 						case 9: //- 1
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 1;
-							pin_count++;
+							pinCount++;
 							break;
 						case 10://- 4
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 4;
-							pin_count++;
+							pinCount++;
 							break;
 						case 11://- 7
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 7;
-							pin_count++;
+							pinCount++;
 							break;
 						case 12://- 2
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 2;
-							pin_count++;
+							pinCount++;
 							break;
 						case 13://- 5
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 5;
-							pin_count++;
+							pinCount++;
 							break;
 						case 14://- 8
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 8;
-							pin_count++;
+							pinCount++;
 							break;
 						case 15://- 0
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 0;
-							pin_count++;
+							pinCount++;
 							break;
 						case 16://- 3
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 3;
-							pin_count++;
+							pinCount++;
 							break;
 						case 17://- 6
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 6;
-							pin_count++;
+							pinCount++;
 							break;
 						case 18://- 9
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							pin = pin * 10 + 9;
-							pin_count++;
+							pinCount++;
 							break;
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
-							pin_count = 0;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							pinCount = 0;
 							pin = 0;
 							break;
 					}
 				}
-				if (pin_count == 4)
+				if (pinCount == 4)
 				{
 					switch (clickableObjectCode)
 					{
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
-							pin_count = 0;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							pinCount = 0;
 							pin = 0;
 							break;
 						case 20://- OK
-							event_routine(RoutineCode::MENU_SOUND);
-							User* user_lookup_result = find_user_by_pin(pin);
-							if (user_lookup_result != nullptr)
+							eventRoutine(RoutineCode::MENU_SOUND);
+							User* useLookupResult = findUserByPin(pin);
+							if (useLookupResult != nullptr)
 							{
-								sign_in(user_lookup_result);
-								oss << get_time_cli() << "Cardholder successfully authenticated:"; log_msg(oss.str());
-								oss << "\t\t\t  Full Name: " << user->last_name << " " << user->first_name; log_msg(oss.str());
-								oss << "\t\t\t  IBAN: " << user->iban; log_msg(oss.str());
-								scr_state = 3;
+								signIn(useLookupResult);
+								oss << getTimeCli() << "Cardholder successfully authenticated:"; logMsg(oss.str());
+								oss << "\t\t\t  Full Name: " << user->lastName << " " << user->firstName; logMsg(oss.str());
+								oss << "\t\t\t  IBAN: " << user->iban; logMsg(oss.str());
+								scrState = 3;
 							}
 							else
 							{
-								pin_retry++;
-								if (pin_retry == 3)
+								pinRetry++;
+								if (pinRetry == 3)
 								{
-									oss << get_time_cli() << "Cardholder entered a wrong PIN 3 times in a row"; log_msg(oss.str());
-									scr_state = 22;
+									oss << getTimeCli() << "Cardholder entered a wrong PIN 3 times in a row"; logMsg(oss.str());
+									scrState = 22;
 									blocked = true;
 								}
 								else
 								{
-									oss << get_time_cli() << "Cardholder entered a wrong PIN"; log_msg(oss.str());
-									scr_state = 21;
+									oss << getTimeCli() << "Cardholder entered a wrong PIN"; logMsg(oss.str());
+									scrState = 21;
 								}
 							}
 							pin = 0;
-							pin_count = 0;
+							pinCount = 0;
 							break;
 					}
 				}
@@ -1054,179 +1048,179 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 1:
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 4;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 4;
 						break;
 					case 5:
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 11;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 11;
 						break;
 					case 7:
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 17;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 17;
 						break;
 				}
 				break;
 			case 4: //- (4) Enter amount (Withdraw)
-				if (amount_count < 7)
+				if (amountCount < 7)
 				{
 					switch (clickableObjectCode)
 					{
 						case 9: //- 1
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 1;
-							amount_count++;
+							amountCount++;
 							break;
 						case 10://- 4
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 4;
-							amount_count++;
+							amountCount++;
 							break;
 						case 11://- 7
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 7;
-							amount_count++;
+							amountCount++;
 							break;
 						case 12://- 2
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 2;
-							amount_count++;
+							amountCount++;
 							break;
 						case 13://- 5
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 5;
-							amount_count++;
+							amountCount++;
 							break;
 						case 14://- 8
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 8;
-							amount_count++;
+							amountCount++;
 							break;
 						case 15://- 0
 							if (amount)
 							{
-								event_routine(RoutineCode::KEY_SOUND);
+								eventRoutine(RoutineCode::KEY_SOUND);
 								amount = amount * 10 + 0;
-								amount_count++;
+								amountCount++;
 							}
 							break;
 						case 16://- 3
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 3;
-							amount_count++;
+							amountCount++;
 							break;
 						case 17://- 6
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 6;
-							amount_count++;
+							amountCount++;
 							break;
 						case 18://- 9
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 9;
-							amount_count++;
+							amountCount++;
 							break;
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::MENU_SOUND);
 							amount = 0;
-							amount_count = 0;
+							amountCount = 0;
 							convert.str("");
-							amount_live_txt = convert.str();
+							amountLiveTxt = convert.str();
 							break;
 						case 20://- OK
 							if (amount)
 							{
-								event_routine(RoutineCode::MENU_SOUND);
-								amount_count = 0;
+								eventRoutine(RoutineCode::MENU_SOUND);
+								amountCount = 0;
 								if (amount <= user->balance)
-									scr_state = 5;
+									scrState = 5;
 								else
 								{
-									scr_state = 10;
+									scrState = 10;
 									amount = 0;
 								}
-								amount_live_txt = "";
+								amountLiveTxt = "";
 								convert.str("");
 							}
 							break;
 					}
 				}
-				if (amount_count == 7)
+				if (amountCount == 7)
 				{
 					switch (clickableObjectCode)
 					{
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::MENU_SOUND);
 							amount = 0;
-							amount_count = 0;
+							amountCount = 0;
 							convert.str("");
-							amount_live_txt = convert.str();
+							amountLiveTxt = convert.str();
 							break;
 						case 20://- OK
-							event_routine(RoutineCode::MENU_SOUND);
-							amount_count = 0;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							amountCount = 0;
 							if (amount <= user->balance)
-								scr_state = 5;
+								scrState = 5;
 							else
 							{
-								scr_state = 10;
+								scrState = 10;
 								amount = 0;
 							}
-							amount_live_txt = "";
+							amountLiveTxt = "";
 							convert.str("");
 							break;
 					}
 				}
 				convert.str("");
 				convert << amount;
-				amount_live_txt = convert.str();
+				amountLiveTxt = convert.str();
 				break;
 			case 5: //- (5) Confirm (Withdraw)
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 6;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 6;
 						break;
 					case 7: //- No (R3)
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 4;
-						amount = 0; amount_count = 0;
-						amount_live_txt = "";
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 4;
+						amount = 0; amountCount = 0;
+						amountLiveTxt = "";
 						convert.str("");
 						break;
 				}
 				break;
 			case 6: //- (6) Processing (Withdraw)
-				event_routine(RoutineCode::CASH_LARGE_OUT, [this]() -> void {
+				eventRoutine(RoutineCode::CASH_LARGE_OUT, [this]() -> void {
 					user->balance = user->balance - amount;
-					oss << get_time_cli() << user->last_name << " " << user->first_name << " withdrew " << amount << " RON"; log_msg(oss.str());
-					amount = 0; amount_count = 0;
-					amount_live_txt = "";
+					oss << getTimeCli() << user->lastName << " " << user->firstName << " withdrew " << amount << " RON"; logMsg(oss.str());
+					amount = 0; amountCount = 0;
+					amountLiveTxt = "";
 					convert.str("");
-					scr_state = 7;
+					scrState = 7;
 				});
 				break;
 			case 7: //- (7) Receipt? (Withdraw)
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						if (!cash_large_visible)
+						if (!cashLargeVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							event_routine(RoutineCode::RECEIPT_OUT);
-							scr_state = 8;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::RECEIPT_OUT);
+							scrState = 8;
 						}
 						break;
 					case 7: //- No (R3)
-						if (!cash_large_visible)
+						if (!cashLargeVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							scr_state = 8;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							scrState = 8;
 						}
 						break;
 					case 22: //- Cash Large
 						vibrate(VibrationDuration::SHORT);
-						cash_large_visible = false;
+						cashLargeVisible = false;
 						break;
 				}
 				break;
@@ -1234,26 +1228,26 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							scr_state = 3;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							scrState = 3;
 						}
 						break;
 					case 7: //- No (R3)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							if (!card_visible)
+							if (!cardVisible)
 							{
-								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
-								event_routine(RoutineCode::CARD_OUT);
+								eventRoutine(RoutineCode::MENU_SOUND);
+								oss << getTimeCli() << user->lastName << " " << user->firstName << " finished the session"; logMsg(oss.str());
+								eventRoutine(RoutineCode::CARD_OUT);
 							}
 						}
 						break;
 					case 24: //- Receipt
 						vibrate(VibrationDuration::SHORT);
-						receipt_visible = false;
+						receiptVisible = false;
 						break;
 				}
 				break;
@@ -1261,125 +1255,125 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 7:
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 4;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 4;
 						break;
 				}
 				break;
 			case 11: //- (11) Enter Amount (Deposit)
-				if (amount_count < 7)
+				if (amountCount < 7)
 				{
 					switch (clickableObjectCode)
 					{
 						case 9: //- 1
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 1;
-							amount_count++;
+							amountCount++;
 							break;
 						case 10://- 4
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 4;
-							amount_count++;
+							amountCount++;
 							break;
 						case 11://- 7
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 7;
-							amount_count++;
+							amountCount++;
 							break;
 						case 12://- 2
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 2;
-							amount_count++;
+							amountCount++;
 							break;
 						case 13://- 5
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 5;
-							amount_count++;
+							amountCount++;
 							break;
 						case 14://- 8
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 8;
-							amount_count++;
+							amountCount++;
 							break;
 						case 15://- 0
 							if (amount)
 							{
-								event_routine(RoutineCode::KEY_SOUND);
+								eventRoutine(RoutineCode::KEY_SOUND);
 								amount = amount * 10 + 0;
-								amount_count++;
+								amountCount++;
 							}
 							break;
 						case 16://- 3
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 3;
-							amount_count++;
+							amountCount++;
 							break;
 						case 17://- 6
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 6;
-							amount_count++;
+							amountCount++;
 							break;
 						case 18://- 9
-							event_routine(RoutineCode::KEY_SOUND);
+							eventRoutine(RoutineCode::KEY_SOUND);
 							amount = amount * 10 + 9;
-							amount_count++;
+							amountCount++;
 							break;
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::MENU_SOUND);
 							amount = 0;
-							amount_count = 0;
+							amountCount = 0;
 							convert.str("");
-							amount_live_txt = convert.str();
+							amountLiveTxt = convert.str();
 							break;
 						case 20://- OK
 							if (amount)
 							{
-								event_routine(RoutineCode::MENU_SOUND);
-								amount_count = 0;
-								scr_state = 12;
-								amount_live_txt = "";
+								eventRoutine(RoutineCode::MENU_SOUND);
+								amountCount = 0;
+								scrState = 12;
+								amountLiveTxt = "";
 								convert.str("");
 							}
 							break;
 					}
 				}
-				if (amount_count == 7)
+				if (amountCount == 7)
 				{
 					switch (clickableObjectCode)
 					{
 						case 19://- Clear
-							event_routine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::MENU_SOUND);
 							amount = 0;
-							amount_count = 0;
+							amountCount = 0;
 							convert.str("");
-							amount_live_txt = convert.str();
+							amountLiveTxt = convert.str();
 							break;
 						case 20://- OK
-							event_routine(RoutineCode::MENU_SOUND);
-							amount_count = 0;
-							scr_state = 12;
-							amount_live_txt = "";
+							eventRoutine(RoutineCode::MENU_SOUND);
+							amountCount = 0;
+							scrState = 12;
+							amountLiveTxt = "";
 							convert.str("");
 							break;
 					}
 				}
 				convert.str("");
 				convert << amount;
-				amount_live_txt = convert.str();
+				amountLiveTxt = convert.str();
 				break;
 			case 12: //- Confirm (Deposit)
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						event_routine(RoutineCode::MENU_SOUND);
-						cash_small_visible = true;
-						scr_state = 13;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						cashSmallVisible = true;
+						scrState = 13;
 						break;
 					case 7: //- No (R3)
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 11;
-						amount = 0; amount_count = 0;
-						amount_live_txt = "";
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 11;
+						amount = 0; amountCount = 0;
+						amountLiveTxt = "";
 						convert.str("");
 						break;
 				}
@@ -1388,8 +1382,8 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 23:
-						event_routine(RoutineCode::CASH_SMALL_IN, [this]() -> void {
-							scr_state = 24;
+						eventRoutine(RoutineCode::CASH_SMALL_IN, [this]() -> void {
+							scrState = 24;
 						});
 						break;
 				}
@@ -1398,18 +1392,18 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						if (!cash_small_visible)
+						if (!cashSmallVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							event_routine(RoutineCode::RECEIPT_OUT);
-							scr_state = 15;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							eventRoutine(RoutineCode::RECEIPT_OUT);
+							scrState = 15;
 						}
 						break;
 					case 7: //- No (R3)
-						if (!cash_small_visible)
+						if (!cashSmallVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							scr_state = 15;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							scrState = 15;
 						}
 						break;
 				}
@@ -1418,145 +1412,145 @@ private:
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							scr_state = 3;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							scrState = 3;
 						}
 						break;
 					case 7: //- No (R3)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							if (!card_visible)
+							if (!cardVisible)
 							{
-								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
-								event_routine(RoutineCode::CARD_OUT);
+								eventRoutine(RoutineCode::MENU_SOUND);
+								oss << getTimeCli() << user->lastName << " " << user->firstName << " finished the session"; logMsg(oss.str());
+								eventRoutine(RoutineCode::CARD_OUT);
 							}
 						}
 						break;
 					case 24: //- Receipt
 						vibrate(VibrationDuration::SHORT);
-						receipt_visible = false;
+						receiptVisible = false;
 						break;
 				}
 				break;
 			case 17: //- Processing (Account Balance)
-				handle_timed_action(processing_time, [this]() -> void {
-					oss << get_time_cli() << user->last_name << " " << user->first_name << "'s balance is: " << user->balance << " RON"; log_msg(oss.str());
-					amount = 0; amount_count = 0;
-					amount_live_txt = "";
+				handleTimedAction(processingTime, [this]() -> void {
+					oss << getTimeCli() << user->lastName << " " << user->firstName << "'s balance is: " << user->balance << " RON"; logMsg(oss.str());
+					amount = 0; amountCount = 0;
+					amountLiveTxt = "";
 					convert.str("");
-					scr_state = 18;
+					scrState = 18;
 				});
 				break;
 			case 18: //- Balance = ***. Receipt?
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						event_routine(RoutineCode::MENU_SOUND);
-						event_routine(RoutineCode::RECEIPT_OUT);
-						scr_state = 19;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						eventRoutine(RoutineCode::RECEIPT_OUT);
+						scrState = 19;
 						break;
 					case 7: //- No (R3)
-						event_routine(RoutineCode::MENU_SOUND);
-						scr_state = 19;
+						eventRoutine(RoutineCode::MENU_SOUND);
+						scrState = 19;
 						break;
 				}
 				balance.str("");
 				balance << user->balance << " RON";
-				amount_live_txt = balance.str();
+				amountLiveTxt = balance.str();
 				break;
 			case 19: //- Another Transaction? (Account Balance)
 				switch (clickableObjectCode)
 				{
 					case 1: //- Yes (L1)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							event_routine(RoutineCode::MENU_SOUND);
-							scr_state = 3;
+							eventRoutine(RoutineCode::MENU_SOUND);
+							scrState = 3;
 						}
 						break;
 					case 7: //- No (R3)
-						if (!receipt_visible)
+						if (!receiptVisible)
 						{
-							if (!card_visible)
+							if (!cardVisible)
 							{
-								event_routine(RoutineCode::MENU_SOUND);
-								oss << get_time_cli() << user->last_name << " " << user->first_name << " finished the session"; log_msg(oss.str());
-								event_routine(RoutineCode::CARD_OUT);
+								eventRoutine(RoutineCode::MENU_SOUND);
+								oss << getTimeCli() << user->lastName << " " << user->firstName << " finished the session"; logMsg(oss.str());
+								eventRoutine(RoutineCode::CARD_OUT);
 							}
 						}
 						break;
 					case 24: //- Receipt
 						vibrate(VibrationDuration::SHORT);
-						receipt_visible = false;
+						receiptVisible = false;
 						break;
 				}
 				break;
 			case 21: //- (21) Wrong PIN
 				if (clickableObjectCode == 20)
 				{
-					event_routine(RoutineCode::MENU_SOUND);
-					scr_state = 2;
+					eventRoutine(RoutineCode::MENU_SOUND);
+					scrState = 2;
 				}
 				break;
 			case 22: //- (22) Account suspended
 				if (!accountSuspendedFlag)
 				{
-					oss << get_time_cli() << "ACCOUNT SUSPENDED"; log_msg(oss.str());
+					oss << getTimeCli() << "ACCOUNT SUSPENDED"; logMsg(oss.str());
 					accountSuspendedFlag = true;
 				}
 				if (clickableObjectCode == 20)
 				{
-					event_routine(RoutineCode::MENU_SOUND);
-					event_routine(RoutineCode::CARD_OUT);
+					eventRoutine(RoutineCode::MENU_SOUND);
+					eventRoutine(RoutineCode::CARD_OUT);
 				}
 				break;
 			case 23: //- (23) Processing (for card in)
-				handle_timed_action(processing_time, [this]() -> void {
+				handleTimedAction(processingTime, [this]() -> void {
 					if (!blocked)
-						scr_state = 2;
+						scrState = 2;
 					else
-						scr_state = 22;
+						scrState = 22;
 				});
 				break;
 			case 24: //- (24) Processing (deposit)
-				handle_timed_action(processing_time, [this]() -> void {
+				handleTimedAction(processingTime, [this]() -> void {
 					user->balance = user->balance + amount;
-					oss << get_time_cli() << user->last_name << " " << user->first_name << " deposited " << amount << " RON"; log_msg(oss.str());
-					amount = 0; amount_count = 0;
-					amount_live_txt = "";
+					oss << getTimeCli() << user->lastName << " " << user->firstName << " deposited " << amount << " RON"; logMsg(oss.str());
+					amount = 0; amountCount = 0;
+					amountLiveTxt = "";
 					convert.str("");
-					scr_state = 14;
+					scrState = 14;
 				});
 				break;
 		}
 
 		if (clickableObjectCode == 25) //- Button: Cancel
 		{
-			if (!card_visible) {
-				event_routine(RoutineCode::MENU_SOUND);
-				if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 &&
-					scr_state != 23) {
-					oss << get_time_cli() << user->last_name << " "
-						<< user->first_name << " canceled the session";
-					log_msg(oss.str());
+			if (!cardVisible) {
+				eventRoutine(RoutineCode::MENU_SOUND);
+				if (scrState != 1 && scrState != 2 && scrState != 21 && scrState != 22 &&
+					scrState != 23) {
+					oss << getTimeCli() << user->lastName << " "
+						<< user->firstName << " canceled the session";
+					logMsg(oss.str());
 				}
-				event_routine(RoutineCode::CARD_OUT);
+				eventRoutine(RoutineCode::CARD_OUT);
 			}
 		}
 		if (clickableObjectCode == 26) //- Button: Exit
 		{
 			vibrate(VibrationDuration::SHORT);
-			click_snd.play();
+			clickSnd.play();
 			window.close();
 		}
 
 		// Update animations
-		if (running_animation != nullptr)
+		if (runningAnimation != nullptr)
 		{
-			running_animation->update(delta_time);
+			runningAnimation->update(deltaTime);
 		}
 	}
 
@@ -1564,28 +1558,28 @@ private:
 	{
 		window.clear();
 
-		window.draw(backgnd_sprite);
-		if (card_visible)
+		window.draw(backgroundSprite);
+		if (cardVisible)
 		{
-			window.draw(card_sprite);
-			window.draw(card_mask);
+			window.draw(cardSprite);
+			window.draw(cardMask);
 		}
-		if (cash_large_visible)
+		if (cashLargeVisible)
 		{
-			window.draw(cash_large_sprite);
-			window.draw(cash_large_mask);
+			window.draw(cashLargeSprite);
+			window.draw(cashLargeMask);
 		}
-		if (cash_small_visible)
+		if (cashSmallVisible)
 		{
-			window.draw(cash_small_sprite);
-			window.draw(cash_small_mask);
+			window.draw(cashSmallSprite);
+			window.draw(cashSmallMask);
 		}
-		if (receipt_visible)
+		if (receiptVisible)
 		{
-			window.draw(receipt_sprite);
-			window.draw(receipt_mask);
+			window.draw(receiptSprite);
+			window.draw(receiptMask);
 		}
-		scr_render();
+		scrRender();
 
 #ifdef SHOW_CURSOR
 		window.draw(cursorCircle);
@@ -1594,135 +1588,135 @@ private:
 		window.display();
 	}
 
-	void scr_render()
+	void scrRender()
 	{
 		//- Show Live "OK" Instruction
-		if (pin_count == 4 || amount_count == 7)
+		if (pinCount == 4 || amountCount == 7)
 		{
-			init_sf_text(&R3_txt, "Apasati OK", 350, 200, 18, sf::Color::Yellow, sf::Color::Yellow, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&R3Txt, "Apasati OK", 350, 200, 18, sf::Color::Yellow, sf::Color::Yellow, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Screen Clock Text Setup
-		init_sf_text(&scr_clock, get_time_gui(), 490, 25, 13, sf::Color::Red, sf::Color::Red, sf::Text::Bold);
-		window.draw(scr_clock);
+		initSfText(&scrClock, getTimeGui(), 490, 25, 13, sf::Color::Red, sf::Color::Red, sf::Text::Bold);
+		window.draw(scrClock);
 
 		//- Client Name and IBAN Text Setup
-		if (scr_state != 1 && scr_state != 2 && scr_state != 21 && scr_state != 22 && scr_state != 23)
+		if (scrState != 1 && scrState != 2 && scrState != 21 && scrState != 22 && scrState != 23)
 		{
-			init_sf_text(&username_scr, username_scr_str.str(), 85, 25, 13, sf::Color::Cyan, sf::Color::Cyan, sf::Text::Regular);
-			window.draw(username_scr);
+			initSfText(&usernameScr, usernameScrStr.str(), 85, 25, 13, sf::Color::Cyan, sf::Color::Cyan, sf::Text::Regular);
+			window.draw(usernameScr);
 
-			init_sf_text(&iban_scr, iban_scr_str.str(), 85, 290, 13, sf::Color::White, sf::Color::White, sf::Text::Regular);
-			window.draw(iban_scr);
+			initSfText(&ibanScr, ibanScrStr.str(), 85, 290, 13, sf::Color::White, sf::Color::White, sf::Text::Regular);
+			window.draw(ibanScr);
 		}
 
 		//- Processing
-		if (scr_state == 23 || scr_state == 17 || scr_state == 6 || scr_state == 24)
+		if (scrState == 23 || scrState == 17 || scrState == 6 || scrState == 24)
 		{
-			init_sf_text(&R3_txt, "In curs de procesare...", 250, 200, 20, sf::Color::Red, sf::Color::Red, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&R3Txt, "In curs de procesare...", 250, 200, 20, sf::Color::Red, sf::Color::Red, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Receipt?
-		if (scr_state == 7 || scr_state == 14 || scr_state == 18)
+		if (scrState == 7 || scrState == 14 || scrState == 18)
 		{
-			if (scr_state == 18)
+			if (scrState == 18)
 			{
-				init_sf_text(&live_txt, amount_live_txt, 280, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
-				window.draw(live_txt);
+				initSfText(&liveTxt, amountLiveTxt, 280, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
+				window.draw(liveTxt);
 			}
-			init_sf_text(&dialog, "Doriti bonul aferent tranzactiei?", 90, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Doriti bonul aferent tranzactiei?", 90, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			init_sf_text(&L1_txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(L1_txt);
-			init_sf_text(&R3_txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&L1Txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(L1Txt);
+			initSfText(&R3Txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Confirm?
-		if (scr_state == 5 || scr_state == 12)
+		if (scrState == 5 || scrState == 12)
 		{
-			init_sf_text(&dialog, "Confirmare", 255, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Confirmare", 255, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			init_sf_text(&L1_txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(L1_txt);
-			init_sf_text(&R3_txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&L1Txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(L1Txt);
+			initSfText(&R3Txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Another Transaction?
-		if (scr_state == 8 || scr_state == 15 || scr_state == 19)
+		if (scrState == 8 || scrState == 15 || scrState == 19)
 		{
-			init_sf_text(&dialog, "Doriti sa efectuati\no noua tranzactie?", 200, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Doriti sa efectuati\no noua tranzactie?", 200, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			init_sf_text(&L1_txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(L1_txt);
-			init_sf_text(&R3_txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&L1Txt, "<--- Da", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(L1Txt);
+			initSfText(&R3Txt, "Nu --->", 465, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Enter amount
-		if (scr_state == 4 || scr_state == 11)
+		if (scrState == 4 || scrState == 11)
 		{
-			init_sf_text(&dialog, "Introduceti suma", 210, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Introduceti suma", 210, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			pin_border_shape.setPosition(230, 150);
-			pin_border_shape.setSize(sf::Vector2f(180, 30));
-			pin_border_shape.setFillColor(sf::Color::Black);
-			pin_border_shape.setOutlineColor(sf::Color::White);
-			pin_border_shape.setOutlineThickness(2);
-			window.draw(pin_border_shape);
-			init_sf_text(&live_txt, amount_live_txt, 270, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(live_txt);
-			init_sf_text(&R3_txt, "RON", 425, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			pinBorderShape.setPosition(230, 150);
+			pinBorderShape.setSize(sf::Vector2f(180, 30));
+			pinBorderShape.setFillColor(sf::Color::Black);
+			pinBorderShape.setOutlineColor(sf::Color::White);
+			pinBorderShape.setOutlineThickness(2);
+			window.draw(pinBorderShape);
+			initSfText(&liveTxt, amountLiveTxt, 270, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(liveTxt);
+			initSfText(&R3Txt, "RON", 425, 150, 23, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 		}
 
 		//- Main Screen Setup
-		switch (scr_state)
+		switch (scrState)
 		{
 		case 1:
-			init_sf_text(&dialog, "    Bun venit!\nIntroduceti cardul", 180, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "    Bun venit!\nIntroduceti cardul", 180, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
 			break;
 		case 2:
-			init_sf_text(&dialog, "Introduceti codul PIN", 170, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Introduceti codul PIN", 170, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			amount_border_shape.setPosition(230, 150);
-			amount_border_shape.setSize(sf::Vector2f(180, 30));
-			amount_border_shape.setFillColor(sf::Color::Black);
-			amount_border_shape.setOutlineColor(sf::Color::White);
-			amount_border_shape.setOutlineThickness(2);
-			window.draw(amount_border_shape);
-			pin_live_txt = std::string(pin_count, '*');
-			init_sf_text(&live_txt, pin_live_txt, 290, 150, 25, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(live_txt);
+			amountBorderShape.setPosition(230, 150);
+			amountBorderShape.setSize(sf::Vector2f(180, 30));
+			amountBorderShape.setFillColor(sf::Color::Black);
+			amountBorderShape.setOutlineColor(sf::Color::White);
+			amountBorderShape.setOutlineThickness(2);
+			window.draw(amountBorderShape);
+			pinLiveTxt = std::string(pinCount, '*');
+			initSfText(&liveTxt, pinLiveTxt, 290, 150, 25, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(liveTxt);
 			break;
 		case 3:
-			init_sf_text(&L1_txt, "<--- Retragere", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(L1_txt);
-			init_sf_text(&R1_txt, "Depunere --->", 390, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R1_txt);
-			init_sf_text(&R3_txt, "Interogare Sold --->", 300, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&L1Txt, "<--- Retragere", 85, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(L1Txt);
+			initSfText(&R1Txt, "Depunere --->", 390, 130, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R1Txt);
+			initSfText(&R3Txt, "Interogare Sold --->", 300, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 			break;
 		case 10:
-			init_sf_text(&dialog, "Sold insuficient", 210, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Sold insuficient", 210, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
-			init_sf_text(&R3_txt, "Modificati suma --->", 300, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
-			window.draw(R3_txt);
+			initSfText(&R3Txt, "Modificati suma --->", 300, 225, 20, sf::Color::White, sf::Color::White, sf::Text::Bold);
+			window.draw(R3Txt);
 			break;
 		case 13:
-			init_sf_text(&dialog, "Plasati numerarul in bancomat", 120, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Plasati numerarul in bancomat", 120, 50, 22, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
 			break;
 		case 21:
-			init_sf_text(&dialog, "Ati introdus un PIN incorect\n        OK | Cancel?", 110, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "Ati introdus un PIN incorect\n        OK | Cancel?", 110, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
 			break;
 		case 22:
-			init_sf_text(&dialog, "3 incercari succesive eronate\n  Contul dvs este suspendat\n      Apasati tasta OK", 105, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
+			initSfText(&dialog, "3 incercari succesive eronate\n  Contul dvs este suspendat\n      Apasati tasta OK", 105, 50, 24, sf::Color::Green, sf::Color::Green, sf::Text::Bold);
 			window.draw(dialog);
 		}
 	}
@@ -1730,19 +1724,19 @@ private:
 	void addRunningAnimation(Animation* animation)
 	{
 		releaseRunningAnimation();
-		this->running_animation = animation;
+		this->runningAnimation = animation;
 	}
 
 	void releaseRunningAnimation()
 	{
-		if (running_animation != nullptr)
+		if (runningAnimation != nullptr)
 		{
-			delete running_animation;
-			running_animation = nullptr;
+			delete runningAnimation;
+			runningAnimation = nullptr;
 		}
 	}
 
-	void event_routine(unsigned short int routine, std::function<void()> callback = {})
+	void eventRoutine(unsigned short int routine, std::function<void()> callback = {})
 	{
 		//=======================
 		//Routine Codes (routine)
@@ -1763,79 +1757,79 @@ private:
 		{
 		case RoutineCode::CARD_IN:
 			accountSuspendedFlag = false;
-			card_snd.play();
+			cardSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
 			addRunningAnimation(new VerticalOffsetAnimation(
-					card_animation_time, &card_sprite,
-					card_sprite_position, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
-			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
-				oss << get_time_cli() << "The cardholder inserted a VISA Classic Card"; log_msg(oss.str());
+					cardAnimationTime, &cardSprite,
+					cardSpritePosition, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
+			handleTimedAction(cardSndBuf.getDuration(), [this, callback]() -> void {
+				oss << getTimeCli() << "The cardholder inserted a VISA Classic Card"; logMsg(oss.str());
 				releaseRunningAnimation();
-				card_visible = false;
-				card_sprite.setPosition(card_sprite_position);
+				cardVisible = false;
+				cardSprite.setPosition(cardSpritePosition);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::CARD_OUT:
-			card_snd.play();
+			cardSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
-			card_visible = true;
+			cardVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					card_animation_time, &card_sprite,
-					card_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handle_timed_action(card_snd_buf.getDuration(), [this, callback]() -> void {
-				oss << get_time_cli() << "The card was ejected"; log_msg(oss.str());
+					cardAnimationTime, &cardSprite,
+					cardSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
+			handleTimedAction(cardSndBuf.getDuration(), [this, callback]() -> void {
+				oss << getTimeCli() << "The card was ejected"; logMsg(oss.str());
 				releaseRunningAnimation();
-				card_sprite.setPosition(card_sprite_position);
+				cardSprite.setPosition(cardSpritePosition);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
-				sign_out();
+				signOut();
 			});
 			break;
 		case RoutineCode::KEY_SOUND:
-			key_snd.play();
+			keySnd.play();
 			vibrate(VibrationDuration::SHORT);
 			break;
 		case RoutineCode::MENU_SOUND:
-			menu_snd.play();
+			menuSnd.play();
 			vibrate(VibrationDuration::SHORT);
 			break;
 		case RoutineCode::CASH_LARGE_OUT:
-			cash_snd.play();
+			cashSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
-			cash_large_visible = true;
+			cashLargeVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cash_snd_buf.getDuration(), &cash_large_sprite,
-					cash_large_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+					cashSndBuf.getDuration(), &cashLargeSprite,
+					cashLargeSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
+			handleTimedAction(cashSndBuf.getDuration(), [this, callback]() -> void {
 				releaseRunningAnimation();
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::CASH_SMALL_IN:
-			cash_snd.play();
+			cashSnd.play();
 			vibrate(VibrationDuration::MEDIUM);
 			addRunningAnimation(new VerticalOffsetAnimation(
-					cash_snd_buf.getDuration(), &cash_small_sprite,
-					cash_small_sprite_position, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
-			handle_timed_action(cash_snd_buf.getDuration(), [this, callback]() -> void {
+					cashSndBuf.getDuration(), &cashSmallSprite,
+					cashSmallSpritePosition, VerticalOffsetAnimationType::ORIGIN_TO_TOP));
+			handleTimedAction(cashSndBuf.getDuration(), [this, callback]() -> void {
 				releaseRunningAnimation();
-				cash_small_visible = false;
-				cash_small_sprite.setPosition(cash_small_sprite_position);
+				cashSmallVisible = false;
+				cashSmallSprite.setPosition(cashSmallSpritePosition);
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
 			});
 			break;
 		case RoutineCode::RECEIPT_OUT:
 			vibrate(VibrationDuration::MEDIUM);
-			print_receipt_snd.play();
-			receipt_visible = true;
+			printReceiptSnd.play();
+			receiptVisible = true;
 			addRunningAnimation(new VerticalOffsetAnimation(
-					print_receipt_snd_buf.getDuration(), &receipt_sprite,
-					receipt_sprite_position, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
-			handle_timed_action(print_receipt_snd_buf.getDuration(), [this, callback]() -> void {
+					printReceiptSndBuf.getDuration(), &receiptSprite,
+					receiptSpritePosition, VerticalOffsetAnimationType::TOP_TO_ORIGIN));
+			handleTimedAction(printReceiptSndBuf.getDuration(), [this, callback]() -> void {
 				releaseRunningAnimation();
 				vibrate(VibrationDuration::SHORT);
 				if (callback) callback();
@@ -1844,19 +1838,19 @@ private:
 		}
 	}
 
-	void load_clients()
+	void loadClients()
 	{
 		User u;
 		int nr, i;
 		database >> nr;
 		for (i = 0; i < nr; i++)
 		{
-			database >> u.iban >> u.last_name >> u.first_name >> u.pin >> u.balance;
+			database >> u.iban >> u.lastName >> u.firstName >> u.pin >> u.balance;
 			users.push_back(u);
 		}
 	}
 
-	User* find_user_by_pin(unsigned short pin)
+	User* findUserByPin(unsigned short pin)
 	{
 		for (int i = 0; i < users.size(); i++)
 		{
@@ -1866,33 +1860,33 @@ private:
 		return nullptr;
 	}
 
-	void sign_out()
+	void signOut()
 	{
 		user = nullptr;
-		username_scr_str.str("");
-		iban_scr_str.str("");
-		init_states();
+		usernameScrStr.str("");
+		ibanScrStr.str("");
+		initStates();
 	}
 
-	void sign_in(User* user)
+	void signIn(User* user)
 	{
 		this->user = user;
-		username_scr_str << user->last_name << " " << user->first_name;
-		iban_scr_str << user->iban;
+		usernameScrStr << user->lastName << " " << user->firstName;
+		ibanScrStr << user->iban;
 	}
 
-	void load_placeholder_client()
+	void loadPlaceholderClient()
 	{
 		User u;
 		u.iban = "RO-13-ABBK-0345-2342-0255-92";
-		u.last_name = "Placeholder";
-		u.first_name = "Client";
+		u.lastName = "Placeholder";
+		u.firstName = "Client";
 		u.pin = 0;
 		u.balance = 100;
 		users.push_back(u);
 	}
 
-	std::string program_title()
+	std::string programTitle()
 	{
 		std::ostringstream stream;
 		stream << title << " | v" << ver;
@@ -1909,28 +1903,28 @@ private:
         return ss.str();
     }
 
-	std::string get_time_cli()
+	std::string getTimeCli()
 	{
         std::chrono::time_point<std::chrono::system_clock> current_time =
                 std::chrono::system_clock::now();
         return serializeTimePoint(current_time, "%Y-%m-%d | %H:%M:%S --> ");
 	}
 
-	std::string get_time_gui()
+	std::string getTimeGui()
 	{
 		std::chrono::time_point<std::chrono::system_clock> current_time =
 		        std::chrono::system_clock::now();
 		return serializeTimePoint(current_time, "%H:%M:%S");
 	}
 
-	std::string get_name_log()
+	std::string getLogFileName()
 	{
         std::chrono::time_point<std::chrono::system_clock> current_time =
                 std::chrono::system_clock::now();
         return "log-" + serializeTimePoint(current_time, "%Y.%m.%d-%H.%M.%S") + ".txt";
     }
 
-	void log_msg(std::string str)
+	void logMsg(std::string str)
 	{
 		std::cout << str << std::endl;
 		log << str << std::endl;
@@ -1940,45 +1934,39 @@ private:
 
 	void terminate()
 	{
-		oss << get_time_cli() << "The ATM is now powered off"; log_msg(oss.str());
+		oss << getTimeCli() << "The ATM is now powered off"; logMsg(oss.str());
 		if (log.is_open())
 			log.close();
 #ifdef TARGET_ANDROID
-		android_glue.release();
+		androidGlue.release();
 #endif
 		system("pause");
 	}
 
-	void init_sf_text(sf::Text *pText, const std::string msg, float pos_x, float pos_y, unsigned int char_size, const sf::Color color_fill, const sf::Color color_outline, const sf::Uint32 style) 
+	void initSfText(sf::Text *pText, const std::string msg, float posX, float posY, unsigned int charSize, const sf::Color colorFill, const sf::Color colorOutline, const sf::Uint32 style)
 	{
-		pText->setPosition(pos_x, pos_y);
+		pText->setPosition(posX, posY);
 		pText->setString(msg);
-		pText->setCharacterSize(char_size);
-		pText->setFillColor(color_fill);
-		pText->setOutlineColor(color_outline);
+		pText->setCharacterSize(charSize);
+		pText->setFillColor(colorFill);
+		pText->setOutlineColor(colorOutline);
 		pText->setStyle(style);
 	}
 
-	void set_text_color(sf::Text *pText, const sf::Color color)
-	{
-		pText->setOutlineColor(color);
-		pText->setFillColor(color);
-	}
-
-	inline std::string res(std::string general_path)
+	inline std::string res(std::string generalPath)
     {
-	    return get_res_file_path(general_path);
+	    return getResFilePath(generalPath);
     }
 
-	inline std::string get_res_file_path(std::string general_path)
+	inline std::string getResFilePath(std::string generalPath)
     {
 #ifdef TARGET_ANDROID
-	    return general_path;
+	    return generalPath;
 #endif
-	    return "res/" + general_path;
+	    return "res/" + generalPath;
     }
 
-    void handle_timed_action(sf::Time duration, std::function<void()> action)
+    void handleTimedAction(sf::Time duration, std::function<void()> action)
 	{
 		if (actionTimer == nullptr)
 		{
@@ -1989,10 +1977,10 @@ private:
 		}
 	}
 
-	void vibrate(VibrationDuration vibration_duration)
+	void vibrate(VibrationDuration vibrationDuration)
 	{
 #ifdef TARGET_ANDROID
-		android_glue.vibrate(vibration_duration);
+		androidGlue.vibrate(vibrationDuration);
 #endif
 	}
 
@@ -2002,12 +1990,12 @@ public:
 		init();
 		while (window.isOpen())
 		{
-			sf::Time delta_time = frame_delta_clock.restart();
-			handle_events();
-			handle_action_timer();
+			sf::Time deltaTime = frameDeltaClock.restart();
+			handleEvents();
+			handleActionTimer();
 			if (windowHasFocus)
 			{
-				update(delta_time);
+				update(deltaTime);
 				render(window);
 			}
 			else
