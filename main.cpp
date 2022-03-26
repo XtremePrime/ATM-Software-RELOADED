@@ -205,13 +205,9 @@ private:
 	{
 		float sanitizedAlpha;
 		if (alphaDiff > 0.f)
-		{
 			sanitizedAlpha = std::min(targetAlpha, alpha);
-		}
 		else
-		{
 			sanitizedAlpha = std::max(targetAlpha, alpha);
-		}
 		this->currentAlpha = sanitizedAlpha;
 		onUpdateCallback(sanitizedAlpha);
 	}
@@ -263,8 +259,25 @@ struct OffsetAnimationUpdate
 
 class OffsetAnimation : public GenericAnimation<OffsetAnimationUpdate>
 {
+private:
+	sf::Vector2f getSafeIncrementalOffset(sf::Vector2f proposedOffset)
+	{
+		sf::Vector2f safeOffset;
+		sf::Vector2f availableSpace = targetOffset - cumulatedOffset;
+		if (targetOffset.x > 0.f)
+			safeOffset.x = std::min(availableSpace.x, proposedOffset.x);
+		else
+			safeOffset.x = std::max(availableSpace.x, proposedOffset.x);
+		if (targetOffset.y > 0.f)
+			safeOffset.y = std::min(availableSpace.y, proposedOffset.y);
+		else
+			safeOffset.y = std::max(availableSpace.y, proposedOffset.y);
+		return safeOffset;
+	}
+
 protected:
 	sf::Vector2f targetOffset;
+	sf::Vector2f cumulatedOffset;
 
 public:
 	OffsetAnimation(sf::Time duration, 
@@ -294,8 +307,11 @@ public:
 		{
 			float offsetX = (deltaTime * targetOffset.x) / duration;
 			float offsetY = (deltaTime * targetOffset.y) / duration;
+			sf::Vector2f safeIncrementalOffset = getSafeIncrementalOffset(sf::Vector2f(offsetX, offsetY));
+			this->cumulatedOffset += safeIncrementalOffset;
+			std::cout << cumulatedOffset.y << std::endl;
 			onUpdateCallback(OffsetAnimationUpdate {
-				OffsetAnimationUpdateType::MOVE, sf::Vector2f(offsetX, offsetY)
+				OffsetAnimationUpdateType::MOVE, safeIncrementalOffset
 			});
 		} else {
 			onAnimationEnd();
