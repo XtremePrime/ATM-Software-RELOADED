@@ -397,7 +397,7 @@ class Atm
 private:
     //- Title and Version
     std::string title = "ATM Software RELOADED";
-    std::string ver = "1.0";
+    std::string ver = "1.1";
 
     //- Screen Size
     const int CANVAS_WIDTH = 960, CANVAS_HEIGHT = 620;
