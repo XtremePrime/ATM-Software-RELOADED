@@ -818,6 +818,10 @@ private:
             case sf::Event::MouseEntered:
                 windowHasFocus = true;
                 break;
+            case sf::Event::KeyPressed:
+                if (event.key.code == sf::Keyboard::Escape) // Note: This is also triggered when the back button is pressed on Android
+                    window.close();
+                break;
 #endif
             case sf::Event::Closed:
                 window.close();
