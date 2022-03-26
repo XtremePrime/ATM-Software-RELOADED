@@ -309,7 +309,6 @@ public:
 			float offsetY = (deltaTime * targetOffset.y) / duration;
 			sf::Vector2f safeIncrementalOffset = getSafeIncrementalOffset(sf::Vector2f(offsetX, offsetY));
 			this->cumulatedOffset += safeIncrementalOffset;
-			std::cout << cumulatedOffset.y << std::endl;
 			onUpdateCallback(OffsetAnimationUpdate {
 				OffsetAnimationUpdateType::MOVE, safeIncrementalOffset
 			});
