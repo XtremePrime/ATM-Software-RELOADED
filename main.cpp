@@ -1,5 +1,5 @@
 /*
-// ATM-Software-CPP � Radu Salagean 2015
+// ATM-Software-CPP © Radu Salagean 2015
 //
 // Rebuild & Port by XtremePrime 2021:
 // -- In the spirit of the original, all code was kept in one .cpp file
