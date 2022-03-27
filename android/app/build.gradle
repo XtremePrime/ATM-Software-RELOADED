@@ -3,7 +3,22 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def userHome = System.getProperty("user.home")
+def globalGradleDir = new File(userHome + "/.gradle")
+def keystorePropertiesFile = new File(globalGradleDir.absolutePath + "/keystore.properties")
+def keystoreProperties = new Properties()
+keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+
 android {
+    signingConfigs {
+        config {
+            keyAlias keystoreProperties['atmSoftwareReloadedKeyAlias']
+            keyPassword keystoreProperties['atmSoftwareReloadedKeyPassword']
+            storeFile new File(globalGradleDir.absolutePath + "/" + keystoreProperties['atmSoftwareReloadedStoreFile'])
+            storePassword keystoreProperties['atmSoftwareReloadedStorePassword']
+        }
+    }
+
     compileSdk 31
 
     defaultConfig {
@@ -26,8 +41,8 @@ android {
 
     buildTypes {
         release {
+            signingConfig signingConfigs.config
             minifyEnabled true
-            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
