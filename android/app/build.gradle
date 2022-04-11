@@ -1,0 +1,85 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+def userHome = System.getProperty("user.home")
+def globalGradleDir = new File(userHome + "/.gradle")
+def keystorePropertiesFile = new File(globalGradleDir.absolutePath + "/keystore.properties")
+def keystoreProperties = new Properties()
+keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+
+android {
+    signingConfigs {
+        config {
+            keyAlias keystoreProperties['atmSoftwareReloadedKeyAlias']
+            keyPassword keystoreProperties['atmSoftwareReloadedKeyPassword']
+            storeFile new File(globalGradleDir.absolutePath + "/" + keystoreProperties['atmSoftwareReloadedStoreFile'])
+            storePassword keystoreProperties['atmSoftwareReloadedStorePassword']
+        }
+    }
+
+    compileSdk 31
+
+    defaultConfig {
+        applicationId "com.radusalagean.atmsoftwarereloaded"
+        minSdk 21
+        targetSdk 31
+        versionCode 1
+        versionName "1.1"
+
+//        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            ndkBuild {
+                cppFlags '-std=c++17'
+            }
+        }
+        ndk {
+            abiFilters 'armeabi-v7a', 'x86'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.config
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    externalNativeBuild {
+        ndkBuild {
+            path "src/main/cpp/Android.mk"
+        }
+    }
+//    buildFeatures {
+//        viewBinding true
+//    }
+    ndkVersion '20.1.5948944'
+    sourceSets {
+        main {
+            assets {
+                srcDirs 'src/main/assets', '../../res'
+            }
+        }
+    }
+}
+
+dependencies {
+
+    // These are Android-specific dependencies that were added from the project template
+    // Uncomment them if you want to write native android code (java / kotlin)
+//    implementation 'androidx.core:core-ktx:1.7.0'
+//    implementation 'androidx.appcompat:appcompat:1.4.1'
+//    implementation 'com.google.android.material:material:1.5.0'
+//    implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
+//    testImplementation 'junit:junit:4.13.2'
+//    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+//    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+}

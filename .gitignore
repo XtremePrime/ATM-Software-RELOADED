@@ -2,10 +2,10 @@
 .vs/
 
 # Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
+/[Dd]ebug/
+/[Dd]ebugPublic/
+/[Rr]elease/
+/[Rr]eleases/
 x64/
 x86/
 [Ww][Ii][Nn]32/
@@ -64,3 +64,10 @@ ipch/
 *.user
 *.userosscache
 *.sln.docstates
+
+# macOS
+.DS_Store
+
+# ATM
+/atm
+/log*.txt
